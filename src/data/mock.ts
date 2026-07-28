@@ -201,6 +201,19 @@ export const estimates = [
   { id: "EST-2024-0209", customer: "Nexus Enterprises", customerId: "C003", amount: 54000, tax: 0, total: 54000, status: "converted", issueDate: "2024-10-10", expiryDate: "2024-11-10", items: 5 },
 ]
 
+export const salesOrders = [
+  { id: "SO-2024-0312", customer: "Luminary Solutions", customerId: "C002", estimateId: "EST-2024-0217", amount: 18500, tax: 1480, total: 19980, status: "confirmed", orderDate: "2024-11-22", expectedDate: "2024-12-06", items: 2, fulfilled: 0 },
+  { id: "SO-2024-0311", customer: "Orion Digital Ltd", customerId: "C006", estimateId: "EST-2024-0214", amount: 31000, tax: 6200, total: 37200, status: "partially-fulfilled", orderDate: "2024-11-05", expectedDate: "2024-11-25", items: 3, fulfilled: 1 },
+  { id: "SO-2024-0310", customer: "Nexus Enterprises", customerId: "C003", estimateId: "EST-2024-0209", amount: 54000, tax: 0, total: 54000, status: "invoiced", orderDate: "2024-10-18", expectedDate: "2024-11-01", items: 5, fulfilled: 5 },
+  { id: "SO-2024-0309", customer: "Blue Ridge Software", customerId: "C012", estimateId: "EST-2024-0211", amount: 7800, tax: 624, total: 8424, status: "draft", orderDate: "2024-11-28", expectedDate: "2024-12-12", items: 1, fulfilled: 0 },
+  { id: "SO-2024-0308", customer: "Apex Dynamics Corp", customerId: "C001", estimateId: null, amount: 28600, tax: 2288, total: 30888, status: "fulfilled", orderDate: "2024-11-10", expectedDate: "2024-11-28", items: 4, fulfilled: 4 },
+  { id: "SO-2024-0307", customer: "Ironclad Logistics", customerId: "C011", estimateId: null, amount: 14200, tax: 1136, total: 15336, status: "confirmed", orderDate: "2024-11-26", expectedDate: "2024-12-10", items: 2, fulfilled: 0 },
+  { id: "SO-2024-0306", customer: "Cascade Industries", customerId: "C005", estimateId: null, amount: 9600, tax: 768, total: 10368, status: "partially-fulfilled", orderDate: "2024-11-14", expectedDate: "2024-11-30", items: 3, fulfilled: 2 },
+  { id: "SO-2024-0305", customer: "Vantage Point Media", customerId: "C010", estimateId: null, amount: 22100, tax: 1768, total: 23868, status: "cancelled", orderDate: "2024-10-20", expectedDate: "2024-11-05", items: 3, fulfilled: 0 },
+  { id: "SO-2024-0304", customer: "Quantum Ventures", customerId: "C004", estimateId: null, amount: 41500, tax: 3320, total: 44820, status: "invoiced", orderDate: "2024-10-08", expectedDate: "2024-10-28", items: 5, fulfilled: 5 },
+  { id: "SO-2024-0303", customer: "Solaris Group", customerId: "C008", estimateId: null, amount: 6800, tax: 1292, total: 8092, status: "fulfilled", orderDate: "2024-11-18", expectedDate: "2024-12-02", items: 1, fulfilled: 1 },
+]
+
 export const purchaseOrders = [
   { id: "PO-2024-0189", vendor: "AWS (Amazon Web Services)", vendorId: "V001", amount: 32000, status: "ordered", orderDate: "2024-11-25", expectedDate: "2024-12-05", items: 3, received: 0 },
   { id: "PO-2024-0188", vendor: "Datadog Inc.", vendorId: "V006", amount: 8400, status: "partially-received", orderDate: "2024-11-18", expectedDate: "2024-11-30", items: 2, received: 1 },
@@ -279,7 +292,8 @@ export const automations = [
   { id: "AUTO-002", name: "Expense auto-approve under $100", trigger: "Expense submitted < $100", action: "Auto-approve & categorize", status: "enabled", runs: 318, lastRun: "2024-11-29", category: "Expenses" },
   { id: "AUTO-003", name: "Low cash balance alert", trigger: "Cash balance < $500K", action: "Slack alert to finance channel", status: "enabled", runs: 4, lastRun: "2024-10-12", category: "Cash" },
   { id: "AUTO-004", name: "New bill → approval workflow", trigger: "Bill created > $5,000", action: "Route to CFO for approval", status: "enabled", runs: 56, lastRun: "2024-11-28", category: "Payables" },
-  { id: "AUTO-005", name: "Estimate → invoice on acceptance", trigger: "Estimate status = accepted", action: "Create draft invoice", status: "enabled", runs: 23, lastRun: "2024-11-20", category: "Revenue" },
+  { id: "AUTO-005", name: "Estimate → sales order on acceptance", trigger: "Estimate status = accepted", action: "Create draft sales order", status: "enabled", runs: 23, lastRun: "2024-11-20", category: "Revenue" },
+  { id: "AUTO-009", name: "Sales order → invoice on fulfillment", trigger: "Sales order status = fulfilled", action: "Create draft invoice", status: "enabled", runs: 18, lastRun: "2024-11-28", category: "Revenue" },
   { id: "AUTO-006", name: "Weekly P&L digest", trigger: "Every Monday 8:00 AM", action: "Email P&L summary to leadership", status: "enabled", runs: 48, lastRun: "2024-11-25", category: "Reporting" },
   { id: "AUTO-007", name: "PO received → create bill", trigger: "PO fully received", action: "Generate vendor bill draft", status: "disabled", runs: 12, lastRun: "2024-09-18", category: "Payables" },
   { id: "AUTO-008", name: "Inventory reorder alert", trigger: "Qty ≤ reorder point", action: "Create draft purchase order", status: "enabled", runs: 9, lastRun: "2024-11-26", category: "Inventory" },
@@ -317,8 +331,9 @@ export const kpis = {
 export type Page =
   | "landing"
   | "dashboard"
-  | "invoices"
   | "estimates"
+  | "sales-orders"
+  | "invoices"
   | "customers"
   | "products"
   | "inventory"

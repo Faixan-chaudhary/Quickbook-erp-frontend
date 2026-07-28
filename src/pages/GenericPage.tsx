@@ -3,7 +3,8 @@ import { Button, Card } from "../components/ui"
 import type { Page } from "../data/mock"
 
 const PAGE_DETAILS: Partial<Record<Page, { title: string; desc: string }>> = {
-  estimates: { title: "Estimates", desc: "Create and manage customer estimates and quotes before converting to invoices." },
+  estimates: { title: "Estimates", desc: "Create and manage customer estimates and quotes before converting to sales orders." },
+  "sales-orders": { title: "Sales Orders", desc: "Convert accepted estimates into sales orders, track fulfillment, and invoice when ready." },
   inventory: { title: "Inventory", desc: "Track stock levels, reorder points, and warehouse movements across locations." },
   "purchase-orders": { title: "Purchase Orders", desc: "Create and track purchase orders to vendors with approval workflows." },
   payments: { title: "Payments", desc: "Track all incoming and outgoing payments, schedule payments, and manage payment methods." },

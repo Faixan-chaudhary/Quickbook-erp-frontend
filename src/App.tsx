@@ -6,6 +6,7 @@ import Landing from "./pages/Landing"
 import Dashboard from "./pages/Dashboard"
 import Invoices from "./pages/Invoices"
 import Estimates from "./pages/Estimates"
+import SalesOrders from "./pages/SalesOrders"
 import Customers from "./pages/Customers"
 import Banking from "./pages/Banking"
 import Expenses from "./pages/Expenses"
@@ -64,8 +65,9 @@ export default function App() {
   const renderPage = () => {
     switch (page) {
       case "dashboard": return <Dashboard />
-      case "invoices": return <Invoices />
       case "estimates": return <Estimates />
+      case "sales-orders": return <SalesOrders />
+      case "invoices": return <Invoices />
       case "customers": return <Customers />
       case "banking": return <Banking />
       case "expenses": return <Expenses />

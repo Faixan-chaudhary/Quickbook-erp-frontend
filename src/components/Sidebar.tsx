@@ -4,7 +4,7 @@ import {
   Users2, Calculator, FolderOpen, Clock, BarChart3,
   Sparkles, TrendingUp, Zap, Bell, Settings, HelpCircle,
   ChevronDown, ChevronRight, Layers, FileCheck, PieChart,
-  Briefcase, ArrowLeftRight, Bot, Wallet,
+  Briefcase, ArrowLeftRight, Bot, Wallet, ClipboardList,
 } from "lucide-react"
 import { useState } from "react"
 import type { Page } from "../data/mock"
@@ -35,8 +35,9 @@ const navGroups: NavGroup[] = [
     id: "revenue",
     label: "Revenue",
     items: [
-      { id: "invoices", label: "Invoices", icon: <FileText size={14} /> },
       { id: "estimates", label: "Estimates", icon: <FileCheck size={14} /> },
+      { id: "sales-orders", label: "Sales Orders", icon: <ClipboardList size={14} /> },
+      { id: "invoices", label: "Invoices", icon: <FileText size={14} /> },
       { id: "customers", label: "Customers", icon: <Users size={14} /> },
       { id: "products", label: "Products", icon: <Package size={14} /> },
     ],

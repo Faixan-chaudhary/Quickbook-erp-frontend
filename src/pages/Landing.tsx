@@ -101,7 +101,7 @@ const WORKFLOWS = [
 ]
 
 const TOOLS = [
-  { icon: FileText, label: "Invoicing", detail: "Estimates → invoices → payments" },
+  { icon: FileText, label: "Invoicing", detail: "Estimates → sales orders → invoices → payments" },
   { icon: Receipt, label: "Expenses & bills", detail: "Capture, approve, pay vendors" },
   { icon: Landmark, label: "Banking", detail: "Sync, match, reconcile" },
   { icon: Users, label: "Payroll", detail: "Run payroll in minutes" },

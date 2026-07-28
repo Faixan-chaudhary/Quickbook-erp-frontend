@@ -9,8 +9,9 @@ import { Avatar, Badge } from "./ui"
 
 const PAGE_TITLES: Partial<Record<Page, string>> = {
   dashboard: "Dashboard",
-  invoices: "Invoices",
   estimates: "Estimates",
+  "sales-orders": "Sales Orders",
+  invoices: "Invoices",
   customers: "Customers",
   products: "Products & Services",
   inventory: "Inventory",
@@ -243,6 +244,8 @@ export default function Topbar({
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-tertiary)] mb-1.5">Quick Navigation</p>
                 {[
                   { label: "Dashboard", page: "dashboard" as Page },
+                  { label: "Estimates", page: "estimates" as Page },
+                  { label: "Sales Orders", page: "sales-orders" as Page },
                   { label: "Invoices", page: "invoices" as Page },
                   { label: "Banking", page: "banking" as Page },
                   { label: "Payroll", page: "payroll" as Page },

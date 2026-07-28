@@ -104,7 +104,7 @@ export default function Estimates() {
                     <td className="px-5 py-3"><Badge variant={variant} size="sm" dot>{label}</Badge></td>
                     <td className="px-5 py-3">
                       {est.status === "accepted" && (
-                        <Button variant="ghost" size="xs" icon={<ArrowRightLeft size={11} />}>Convert</Button>
+                        <Button variant="ghost" size="xs" icon={<ArrowRightLeft size={11} />}>Create SO</Button>
                       )}
                       {est.status === "draft" && (
                         <Button variant="ghost" size="xs" icon={<FileCheck size={11} />}>Send</Button>

@@ -648,6 +648,10 @@ export function statusBadge(status: string): [BadgeVariant, string] {
     outgoing: ["warning", "Outgoing"],
     expired: ["danger", "Expired"],
     cancelled: ["neutral", "Cancelled"],
+    confirmed: ["info", "Confirmed"],
+    fulfilled: ["success", "Fulfilled"],
+    "partially-fulfilled": ["warning", "Partial"],
+    invoiced: ["success", "Invoiced"],
   }
   return map[status] ?? ["neutral", status]
 }
