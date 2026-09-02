@@ -1,3 +1,5 @@
+"use client";
+
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react"
 
 function useInView(delay = 0) {

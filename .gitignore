@@ -35,6 +35,11 @@ coverage/
 # TypeScript
 *.tsbuildinfo
 
+# Next.js
+.next/
+out/
+next-env.d.ts.bak
+
 # Vite
 *.local
 .vite/
@@ -43,3 +48,4 @@ coverage/
 .cache/
 .temp/
 .tmp/
+

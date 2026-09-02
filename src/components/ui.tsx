@@ -1,3 +1,5 @@
+"use client";
+
 import { type ReactNode, type InputHTMLAttributes, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react"
 
 // ─── Button ──────────────────────────────────────────────────────────────────
