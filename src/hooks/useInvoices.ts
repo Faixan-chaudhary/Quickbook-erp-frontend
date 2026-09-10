@@ -23,8 +23,33 @@ export function useInvoices() {
   }, []);
 
   useEffect(() => {
-    fetchInvoices();
-  }, [fetchInvoices]);
+    let isMounted = true;
+
+    const loadData = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const data = await getInvoices();
+        if (isMounted) {
+          setInvoices(data);
+        }
+      } catch (err: unknown) {
+        if (isMounted) {
+          setError(err instanceof Error ? err.message : "Failed to load invoices");
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const addInvoice = async (newInvoice: Omit<Invoice, "id">) => {
     try {

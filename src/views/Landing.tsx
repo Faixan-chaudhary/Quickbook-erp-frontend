@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {
   useCallback,
   useEffect,
@@ -33,6 +34,7 @@ import {
 
 interface LandingProps {
   onGetStarted: () => void;
+  onSignIn?: () => void;
 }
 
 function useTilt3D(maxTilt = 8) {
@@ -212,7 +214,7 @@ function Reveal({
   );
 }
 
-export default function Landing({ onGetStarted }: LandingProps) {
+export default function Landing({ onGetStarted, onSignIn }: LandingProps) {
   return (
     <div className="landing min-h-screen overflow-x-hidden">
       <nav className="landing-nav sticky top-0 z-40 border-b border-[var(--lp-line)]">
@@ -246,20 +248,20 @@ export default function Landing({ onGetStarted }: LandingProps) {
             </a>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onGetStarted}
+            <Link
+              href="/signin"
+              onClick={onSignIn}
               className="hidden sm:block text-[13px] font-medium text-[var(--lp-ink-soft)] hover:text-[var(--lp-ink)] px-3 py-1.5 cursor-pointer"
             >
               Sign in
-            </button>
-            <button
-              type="button"
+            </Link>
+            <Link
+              href="/signup"
               onClick={onGetStarted}
-              className="landing-cta-primary h-9 px-4 rounded-md text-[13px] font-semibold cursor-pointer"
+              className="landing-cta-primary inline-flex items-center justify-center h-9 px-4 rounded-md text-[13px] font-semibold cursor-pointer"
             >
               Start free trial
-            </button>
+            </Link>
           </div>
         </div>
       </nav>
@@ -544,13 +546,12 @@ export default function Landing({ onGetStarted }: LandingProps) {
                                 <span className="truncate">{row.t}</span>
                               </span>
                               <span
-                                className={`font-semibold tabular-nums shrink-0 ${
-                                  row.tone === "danger"
+                                className={`font-semibold tabular-nums shrink-0 ${row.tone === "danger"
                                     ? "text-[#B91C1C]"
                                     : row.tone === "brand"
                                       ? "text-[var(--lp-brand)]"
                                       : "text-[var(--lp-ink-soft)]"
-                                }`}
+                                  }`}
                               >
                                 {row.s}
                               </span>
@@ -805,11 +806,10 @@ export default function Landing({ onGetStarted }: LandingProps) {
             ].map((plan, i) => (
               <Reveal key={plan.name} delay={i * 80}>
                 <div
-                  className={`landing-price-card rounded-xl p-6 flex flex-col h-full ${
-                    plan.featured
+                  className={`landing-price-card rounded-xl p-6 flex flex-col h-full ${plan.featured
                       ? "landing-price-featured text-white"
                       : "bg-[#FAFDFC] border border-[var(--lp-line)]"
-                  }`}
+                    }`}
                 >
                   {plan.featured && (
                     <div className="inline-flex self-start items-center gap-1.5 text-[11px] font-semibold bg-white/15 text-[#9DE8DE] px-2.5 py-1 rounded-md mb-3">
@@ -864,11 +864,10 @@ export default function Landing({ onGetStarted }: LandingProps) {
                   <button
                     type="button"
                     onClick={onGetStarted}
-                    className={`w-full h-10 rounded-md text-[13px] font-semibold cursor-pointer transition-colors ${
-                      plan.featured
+                    className={`w-full h-10 rounded-md text-[13px] font-semibold cursor-pointer transition-colors ${plan.featured
                         ? "bg-white text-[var(--lp-ink)] hover:bg-[var(--lp-mint)]"
                         : "landing-cta-primary"
-                    }`}
+                      }`}
                   >
                     {plan.price === "Custom"
                       ? "Talk to sales"

@@ -158,6 +158,25 @@ body {
   transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease, opacity 150ms ease;
 }
 
+/* Override browser input autofill styling (Chrome/Safari/Edge blue background) */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #F8FBFA inset !important;
+  -webkit-text-fill-color: #1A5556 !important;
+  caret-color: #14968C !important;
+  font-size: 12.5px !important;
+  font-family: inherit !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+input:focus:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 1000px #FFFFFF inset !important;
+  -webkit-text-fill-color: #1A5556 !important;
+}
+
+
 /* Chart tooltip */
 .recharts-tooltip-wrapper {
   outline: none;

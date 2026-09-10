@@ -23,8 +23,33 @@ export function useCustomers() {
   }, []);
 
   useEffect(() => {
-    fetchCustomers();
-  }, [fetchCustomers]);
+    let isMounted = true;
+
+    const loadData = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const data = await getCustomers();
+        if (isMounted) {
+          setCustomers(data);
+        }
+      } catch (err: unknown) {
+        if (isMounted) {
+          setError(err instanceof Error ? err.message : "Failed to load customers");
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const addCustomer = async (newCust: Omit<Customer, "id">) => {
     try {

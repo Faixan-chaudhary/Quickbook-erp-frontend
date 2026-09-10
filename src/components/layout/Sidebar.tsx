@@ -33,8 +33,8 @@ import {
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { company, user } from "@/data/mock";
 import { Avatar } from "@/components/ui";
+import { useUserAndCompany } from "@/hooks/useUserAndCompany";
 
 interface NavItem {
   id: string;
@@ -145,6 +145,7 @@ interface SidebarProps {
 export default function Sidebar({ collapsed }: SidebarProps) {
   const pathname = usePathname();
   const [collapsed_groups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const { userName, userRole, companyName } = useUserAndCompany();
 
   const toggleGroup = (id: string) => {
     setCollapsedGroups((prev) => {
@@ -169,7 +170,7 @@ export default function Sidebar({ collapsed }: SidebarProps) {
           </div>
           {!collapsed && (
             <span className="font-semibold text-[14px] text-[var(--color-text)] tracking-tight whitespace-nowrap">
-              Meridian ERP
+              Arca ERP
             </span>
           )}
         </Link>
@@ -181,10 +182,10 @@ export default function Sidebar({ collapsed }: SidebarProps) {
           <button className="w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-[var(--radius-md)] hover:bg-[var(--color-border-subtle)] transition-base group cursor-pointer">
             <div className="flex items-center gap-2 overflow-hidden">
               <span className="w-5 h-5 rounded-[var(--radius-sm)] bg-[var(--color-primary)] flex items-center justify-center text-white text-[9px] font-bold shrink-0">
-                M
+                {companyName.charAt(0).toUpperCase()}
               </span>
               <span className="text-[12px] font-medium text-[var(--color-text)] truncate">
-                {company.name}
+                {companyName}
               </span>
             </div>
             <ChevronDown
@@ -277,13 +278,13 @@ export default function Sidebar({ collapsed }: SidebarProps) {
 
         {!collapsed && (
           <div className="flex items-center gap-2 px-2 py-1.5 mt-1 rounded-[var(--radius-md)] bg-[var(--color-border-subtle)]">
-            <Avatar name={user.name} size="sm" />
+            <Avatar name={userName} size="sm" />
             <div className="overflow-hidden min-w-0 flex-1">
               <div className="text-[12px] font-medium text-[var(--color-text)] truncate">
-                {user.name}
+                {userName}
               </div>
               <div className="text-[10px] text-[var(--color-text-tertiary)] truncate">
-                {user.role}
+                {userRole}
               </div>
             </div>
           </div>

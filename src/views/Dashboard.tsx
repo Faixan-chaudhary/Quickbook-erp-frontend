@@ -4,26 +4,27 @@ import {
   ComposedChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip,
   Line,
-} from "recharts"
+} from "recharts";
 import {
   TrendingUp, ArrowUpRight, ArrowDownRight,
   AlertCircle, CheckCircle2, Info, Calendar,
   FileText, ChevronRight, Target, RefreshCw,
   ArrowRight, Brain,
-} from "lucide-react"
-import { revenueData, cashFlowData, expenseCategoryData, kpis, invoices, aiInsights, transactions, user } from "../data/mock"
-import { Card, Badge, Button, fmtCurrency, fmtDateShort, statusBadge } from "../components/ui"
-import { AnimateIn, ChartReveal } from "../components/ChartReveal"
+} from "lucide-react";
+import { revenueData, cashFlowData, expenseCategoryData, kpis, invoices, aiInsights, transactions } from "../data/mock";
+import { Card, Badge, Button, fmtCurrency, fmtDateShort, statusBadge } from "../components/ui";
+import { AnimateIn, ChartReveal } from "../components/ChartReveal";
+import { useUserAndCompany } from "@/hooks/useUserAndCompany";
 
 function KPICard({ label, value, prev, current, delay = 0 }: {
-  label: string
-  value: string
-  prev: number
-  current: number
-  delay?: number
+  label: string;
+  value: string;
+  prev: number;
+  current: number;
+  delay?: number;
 }) {
-  const pct = prev === 0 ? 0 : Math.round(((current - prev) / prev) * 100)
-  const up = pct >= 0
+  const pct = prev === 0 ? 0 : Math.round(((current - prev) / prev) * 100);
+  const up = pct >= 0;
   return (
     <AnimateIn delay={delay}>
       <Card className="flex flex-col gap-2.5 h-full transition-base hover:-translate-y-0.5 hover:shadow-[var(--shadow-md)]">
@@ -41,7 +42,7 @@ function KPICard({ label, value, prev, current, delay = 0 }: {
         </div>
       </Card>
     </AnimateIn>
-  )
+  );
 }
 
 const chartTooltipStyle = {
@@ -51,7 +52,7 @@ const chartTooltipStyle = {
   fontSize: "12px",
   color: "var(--color-text)",
   boxShadow: "var(--shadow-md)",
-}
+};
 
 const CHART = {
   teal: "#14968C",
@@ -60,27 +61,34 @@ const CHART = {
   amber: "#F59E0B",
   rose: "#E11D48",
   roseSoft: "#FB7185",
-}
+};
 
 function tipFormatter(value: unknown) {
-  return [fmtCurrency(Number(value ?? 0)), ""] as [string, string]
+  return [fmtCurrency(Number(value ?? 0)), ""] as [string, string];
 }
 
 export default function Dashboard() {
-  const today = new Date()
-  const greeting = today.getHours() < 12 ? "Good morning" : today.getHours() < 18 ? "Good afternoon" : "Good evening"
+  const today = new Date();
+  const greeting = today.getHours() < 12 ? "Good morning" : today.getHours() < 18 ? "Good afternoon" : "Good evening";
+  const { userName, companyName } = useUserAndCompany();
 
-  const totalInflow = cashFlowData.reduce((s, d) => s + d.inflow, 0)
-  const totalOutflow = cashFlowData.reduce((s, d) => s + d.outflow, 0)
-  const netCash = totalInflow - totalOutflow
-  const expenseTotal = expenseCategoryData.reduce((s, c) => s + c.value, 0)
+  const totalInflow = cashFlowData.reduce((s, d) => s + d.inflow, 0);
+  const totalOutflow = cashFlowData.reduce((s, d) => s + d.outflow, 0);
+  const netCash = totalInflow - totalOutflow;
+  const expenseTotal = expenseCategoryData.reduce((s, c) => s + c.value, 0);
 
   return (
     <div className="p-6 flex flex-col gap-6 w-full">
+      {/* Dynamic Header Greeting & Company Name */}
       <div className="flex items-start justify-between">
-        <h1 className="text-[20px] font-semibold text-[var(--color-text)] tracking-tight">
-          {greeting}, {user.name.split(" ")[0]}
-        </h1>
+        <div>
+          <h1 className="text-[20px] font-semibold text-[var(--color-text)] tracking-tight">
+            {greeting}, {userName.split(" ")[0]}
+          </h1>
+          <p className="text-[12px] text-[var(--color-text-secondary)] mt-0.5 font-medium">
+            {companyName}
+          </p>
+        </div>
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" icon={<RefreshCw size={13} />}>Sync</Button>
           <Button variant="secondary" size="sm" icon={<Calendar size={13} />}>
@@ -89,6 +97,7 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <KPICard label="Annual Revenue" value={fmtCurrency(kpis.revenue.current)} prev={kpis.revenue.previous} current={kpis.revenue.current} delay={0} />
         <KPICard label="Total Expenses" value={fmtCurrency(kpis.expenses.current)} prev={kpis.expenses.previous} current={kpis.expenses.current} delay={40} />
@@ -182,7 +191,7 @@ export default function Dashboard() {
             </div>
             <div className="space-y-2 flex-1 mt-3">
               {expenseCategoryData.slice(0, 5).map((cat, i) => {
-                const pct = Math.round((cat.value / expenseTotal) * 100)
+                const pct = Math.round((cat.value / expenseTotal) * 100);
                 return (
                   <div key={cat.name} className="flex flex-col gap-1" style={{ animationDelay: `${200 + i * 60}ms` }}>
                     <div className="flex items-center justify-between gap-2">
@@ -199,7 +208,7 @@ export default function Dashboard() {
                       />
                     </div>
                   </div>
-                )
+                );
               })}
             </div>
             </AnimateIn>
@@ -262,7 +271,7 @@ export default function Dashboard() {
           </div>
           <div className="flex-1">
             {invoices.slice(0, 6).map((inv) => {
-              const [variant, label] = statusBadge(inv.status)
+              const [variant, label] = statusBadge(inv.status);
               return (
                 <div
                   key={inv.id}
@@ -281,7 +290,7 @@ export default function Dashboard() {
                   </div>
                   <Badge variant={variant} size="sm">{label}</Badge>
                 </div>
-              )
+              );
             })}
           </div>
         </Card>
@@ -306,7 +315,7 @@ export default function Dashboard() {
                 opportunity: <TrendingUp size={14} className="text-[var(--color-success)]" />,
                 info: <Info size={14} className="text-[var(--color-info)]" />,
                 success: <CheckCircle2 size={14} className="text-[var(--color-success)]" />,
-              }
+              };
               return (
                 <div key={insight.id} className="px-5 py-4 flex items-start gap-3 hover:bg-[var(--color-border-subtle)] transition-base cursor-pointer">
                   <div className="mt-0.5 shrink-0">{iconMap[insight.type as keyof typeof iconMap]}</div>
@@ -318,7 +327,7 @@ export default function Dashboard() {
                     {insight.action} <ArrowRight size={10} className="inline" />
                   </button>
                 </div>
-              )
+              );
             })}
           </div>
         </Card>
@@ -409,5 +418,5 @@ export default function Dashboard() {
         </div>
       </Card>
     </div>
-  )
+  );
 }

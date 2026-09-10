@@ -7,8 +7,12 @@ export default function HomePage() {
   const router = useRouter();
 
   const handleGetStarted = () => {
-    router.push("/dashboard");
+    router.push("/signup");
   };
 
-  return <Landing onGetStarted={handleGetStarted} />;
+  const handleSignIn = () => {
+    router.push("/signin");
+  };
+
+  return <Landing onGetStarted={handleGetStarted} onSignIn={handleSignIn} />;
 }

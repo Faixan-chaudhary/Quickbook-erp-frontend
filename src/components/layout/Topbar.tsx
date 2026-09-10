@@ -15,8 +15,9 @@ import {
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { user } from "@/data/mock";
 import { Avatar, Badge } from "@/components/ui";
+import { useLogout } from "@/hooks/useAuth";
+import { useUserAndCompany } from "@/hooks/useUserAndCompany";
 
 const PAGE_TITLES: Record<string, string> = {
   "/dashboard": "Dashboard",
@@ -71,12 +72,14 @@ export default function Topbar({
 }: TopbarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const { mutate: logout, isPending: isLoggingOut } = useLogout();
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [notifOpen, setNotifOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const { userName, userEmail, userRole } = useUserAndCompany();
 
   const title = (pathname ? PAGE_TITLES[pathname] : null) || "Dashboard";
   const menuOpen = notifOpen || userOpen;
@@ -249,7 +252,7 @@ export default function Topbar({
               }}
               className="flex items-center gap-1.5 cursor-pointer ml-1"
             >
-              <Avatar name={user.name} size="sm" />
+              <Avatar name={userName} size="sm" />
               <ChevronDown
                 size={11}
                 className="text-[var(--color-text-tertiary)] hidden sm:block"
@@ -259,13 +262,13 @@ export default function Topbar({
               <div className="absolute right-0 top-9 w-56 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-[var(--radius-lg)] shadow-[var(--shadow-lg)] z-50 py-1">
                 <div className="px-3 py-2.5 border-b border-[var(--color-border-subtle)]">
                   <p className="text-[12px] font-medium text-[var(--color-text)]">
-                    {user.name}
+                    {userName}
                   </p>
                   <p className="text-[11px] text-[var(--color-text-tertiary)]">
-                    {user.email}
+                    {userEmail}
                   </p>
                   <Badge variant="neutral" size="sm" className="mt-1">
-                    {user.role}
+                    {userRole}
                   </Badge>
                 </div>
                 <button
@@ -288,10 +291,17 @@ export default function Topbar({
                 <div className="border-t border-[var(--color-border-subtle)] mt-1 pt-1">
                   <button
                     type="button"
-                    onClick={() => navigateTo("/")}
-                    className="w-full text-left px-3 py-2 text-[13px] text-[var(--color-danger-text)] hover:bg-[var(--color-danger-bg)] transition-base cursor-pointer"
+                    disabled={isLoggingOut}
+                    onClick={() => {
+                      setUserOpen(false);
+                      logout();
+                    }}
+                    className="w-full text-left px-3 py-2 text-[13px] text-[var(--color-danger-text)] hover:bg-[var(--color-danger-bg)] transition-base cursor-pointer flex items-center justify-between disabled:opacity-50"
                   >
-                    Back to Home
+                    <span>Back to Home</span>
+                    {isLoggingOut && (
+                      <div className="w-3.5 h-3.5 border-2 border-[var(--color-danger-text)] border-t-transparent rounded-full animate-spin" />
+                    )}
                   </button>
                 </div>
               </div>

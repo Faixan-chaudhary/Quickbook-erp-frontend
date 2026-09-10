@@ -157,3 +157,61 @@ export interface Employee {
   startDate: string;
   payType: string;
 }
+
+export type PlanType = "Simple Start" | "Essentials" | "Plus" | "Advanced";
+
+export interface SignUpRequest {
+  email: string;
+  password: string;
+  company_name: string;
+  phone: string;
+  country?: string;
+  currency?: string;
+  plan?: PlanType | string;
+}
+
+export interface SignUpResponse {
+  message: string;
+  email: string;
+  phone?: string | null;
+  plan?: string;
+  requires_verification?: boolean;
+  totp_secret?: string | null;
+  totp_auth_url?: string | null;
+  totp_qr_code?: string | null;
+  user_id?: string;
+  company_id?: string;
+  access_token?: string;
+  refresh_token?: string;
+  token_type?: string;
+}
+
+export interface SignInEmailRequest {
+  email: string;
+  password: string;
+}
+
+export interface VerifyOtpRequest {
+  email: string;
+  otp: string;
+}
+
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+export interface ResetPasswordRequest {
+  email: string;
+  otp: string;
+  new_password: string;
+}
+
+export interface TokenResponse {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  company_id?: string;
+  user_id?: string;
+  user?: User;
+}
+
