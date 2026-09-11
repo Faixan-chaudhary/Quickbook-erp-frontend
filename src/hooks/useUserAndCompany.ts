@@ -5,6 +5,8 @@ import { useQuery } from "@tanstack/react-query";
 export interface UserProfile {
   id?: string;
   name?: string;
+  user_name?: string;
+  full_name?: string;
   email?: string;
   phone?: string | null;
   role?: string;
@@ -49,6 +51,8 @@ export function useUserProfile() {
       const data = await res.json();
       if (typeof window !== "undefined" && data) {
         localStorage.setItem("arca_user_profile", JSON.stringify(data));
+        const resolvedName = data.name || data.user_name || data.full_name;
+        if (resolvedName) localStorage.setItem("user_name", resolvedName);
         if (data.email) localStorage.setItem("user_email", data.email);
       }
       return data;
@@ -105,18 +109,57 @@ export function useCompanyProfile() {
 }
 
 /**
+ * Helper to capitalize names (e.g. "ahsan" -> "Ahsan", "ahsan ali" -> "Ahsan Ali")
+ */
+export function capitalize(str: string): string {
+  if (!str) return "";
+  return str
+    .trim()
+    .split(/\s+/)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+}
+
+/**
  * Helper to convert email into a formatted human-readable name
+ * Example: "ahsan2431@gmail.com" -> "Ahsan"
  * Example: "farhan.ali@gmail.com" -> "Farhan Ali"
- * Example: "owner@example.com" -> "Owner"
  */
 function formatEmailToName(email: string): string {
   if (!email) return "User";
   const prefix = email.split("@")[0] || "";
-  return prefix
+  // Strip trailing numbers (e.g. "ahsan2431" -> "ahsan")
+  const cleanPrefix = prefix.replace(/\d+$/, "");
+  return (cleanPrefix || prefix)
     .split(/[._-]/)
     .filter(Boolean)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
     .join(" ");
+}
+
+/**
+ * Helper to ensure company name is never displayed as a raw email address
+ */
+function resolveCompanyName(
+  companyApiName?: string | null,
+  storedName?: string | null,
+  userEmail?: string | null
+): string {
+  const rawCandidate = (companyApiName || storedName || "").trim();
+
+  // If candidate is a valid non-email name, capitalize and return
+  if (rawCandidate && !rawCandidate.includes("@")) {
+    return capitalize(rawCandidate);
+  }
+
+  // If candidate was an email or empty, generate a clean workspace name
+  const sourceEmail = rawCandidate.includes("@") ? rawCandidate : userEmail || "";
+  if (sourceEmail && sourceEmail.includes("@")) {
+    const prefix = sourceEmail.split("@")[0].replace(/\d+$/, "");
+    return `${capitalize(prefix || "My")} Workspace`;
+  }
+
+  return "Arca Workspace";
 }
 
 /**
@@ -128,14 +171,27 @@ export function useUserAndCompany() {
   const { data: companyData, isLoading: isCompanyLoading } = useCompanyProfile();
 
   // Determine user email & formatted display name
-  const effectiveEmail = userData?.email || "";
-  const userName =
-    userData?.name || (effectiveEmail ? formatEmailToName(effectiveEmail) : "User");
+  const effectiveEmail = userData?.email || (typeof window !== "undefined" ? localStorage.getItem("user_email") || "" : "");
+  const storedUserName = typeof window !== "undefined" ? localStorage.getItem("user_name") || "" : "";
+  
+  const rawUserName =
+    userData?.name ||
+    userData?.user_name ||
+    userData?.full_name ||
+    storedUserName ||
+    (effectiveEmail ? formatEmailToName(effectiveEmail) : "User");
+
+  const userName = capitalize(rawUserName);
   const userRole = userData?.role || "Administrator";
   const userPlan = userData?.plan || companyData?.plan || "Essentials";
 
   // Determine company name & currency
-  const companyName = companyData?.name || "My Company";
+  const storedCompanyName = typeof window !== "undefined" ? localStorage.getItem("company_name") || "" : "";
+  const companyName = resolveCompanyName(
+    companyData?.name || (companyData as any)?.company_name || (companyData as any)?.legal_name,
+    storedCompanyName,
+    effectiveEmail
+  );
   const companyCurrency = companyData?.currency || "USD";
 
   return {

@@ -4,6 +4,7 @@ import { useState, useEffect, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
+  User,
   Building2,
   Mail,
   Lock,
@@ -20,7 +21,6 @@ import { useSignup } from "@/hooks/useAuth";
 import type { SignUpRequest } from "@/types";
 import {
   COUNTRIES_DATA,
-  CURRENCIES_LIST,
   type CountryData,
   findCountryByPhoneNumber,
   findCountryByCode,
@@ -45,6 +45,7 @@ const PLANS = [
 ];
 
 const initialFormData: SignUpRequest = {
+  name: "",
   company_name: "",
   email: "",
   password: "",
@@ -182,6 +183,12 @@ export default function SignUpView() {
     e.preventDefault();
     setValidationError(null);
 
+    // Validate Required: Full Name
+    if (!formData.name || !formData.name.trim()) {
+      setValidationError("Full Name is required.");
+      return;
+    }
+
     // Validate Required: Company Name
     if (!formData.company_name.trim()) {
       setValidationError("Company Name is required.");
@@ -228,6 +235,9 @@ export default function SignUpView() {
 
     // Prepare complete payload (including the selected plan)
     const payload: SignUpRequest = {
+      name: formData.name?.trim(),
+      user_name: formData.name?.trim(),
+      full_name: formData.name?.trim(),
       company_name: formData.company_name.trim(),
       email: formData.email.trim(),
       password: formData.password,
@@ -238,6 +248,7 @@ export default function SignUpView() {
     };
 
     if (typeof window !== "undefined") {
+      if (formData.name) localStorage.setItem("user_name", formData.name.trim());
       localStorage.setItem("user_email", formData.email.trim());
       localStorage.setItem("company_name", formData.company_name.trim());
     }
@@ -305,22 +316,22 @@ export default function SignUpView() {
           )}
 
           <form onSubmit={handleSubmit} autoComplete="off" className="space-y-3">
-            {/* Row 1: Company Name & Work Email */}
+            {/* Row 1: Full Name & Work Email */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="flex items-center gap-1 text-[11.5px] font-semibold text-[#0E4441] tracking-wide mb-1">
-                  <span>Company Name</span>
+                  <span>Full Name</span>
                   <span className="text-[#14968C] text-[11px] font-bold leading-none">*</span>
                 </label>
                 <div className="relative">
-                  <Building2 size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#8AA8A9] pointer-events-none" />
+                  <User size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#8AA8A9] pointer-events-none" />
                   <input
                     type="text"
                     required
                     autoComplete="off"
-                    placeholder="Apex Global or Acme Inc"
-                    value={formData.company_name}
-                    onChange={(e) => handleFieldChange("company_name", e.target.value)}
+                    placeholder="e.g. John Doe"
+                    value={formData.name || ""}
+                    onChange={(e) => handleFieldChange("name", e.target.value)}
                     className="w-full pl-8 pr-2.5 py-1.5 text-[12.5px] font-medium text-[#1A5556] placeholder:text-[11.5px] placeholder:font-normal placeholder:text-[#9AB6B4] bg-[#F8FBFA] hover:bg-white focus:bg-white border border-[#D9E6E6] rounded-md focus:outline-none focus:border-[#14968C] focus:ring-1.5 focus:ring-[#14968C]/15 transition-all"
                   />
                 </div>
@@ -346,8 +357,73 @@ export default function SignUpView() {
               </div>
             </div>
 
-            {/* Row 2: Password & Phone Number (All Required, Option label removed) */}
+            {/* Row 2: Company Name & Country */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="flex items-center gap-1 text-[11.5px] font-semibold text-[#0E4441] tracking-wide mb-1">
+                  <span>Company Name</span>
+                  <span className="text-[#14968C] text-[11px] font-bold leading-none">*</span>
+                </label>
+                <div className="relative">
+                  <Building2 size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#8AA8A9] pointer-events-none" />
+                  <input
+                    type="text"
+                    required
+                    autoComplete="off"
+                    placeholder="Apex Global or Acme Inc"
+                    value={formData.company_name}
+                    onChange={(e) => handleFieldChange("company_name", e.target.value)}
+                    className="w-full pl-8 pr-2.5 py-1.5 text-[12.5px] font-medium text-[#1A5556] placeholder:text-[11.5px] placeholder:font-normal placeholder:text-[#9AB6B4] bg-[#F8FBFA] hover:bg-white focus:bg-white border border-[#D9E6E6] rounded-md focus:outline-none focus:border-[#14968C] focus:ring-1.5 focus:ring-[#14968C]/15 transition-all"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="flex items-center gap-1 text-[11.5px] font-semibold text-[#0E4441] tracking-wide mb-1">
+                  <span>Country</span>
+                  <span className="text-[#14968C] text-[11px] font-bold leading-none">*</span>
+                </label>
+                <div className="relative">
+                  <Globe2 size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#8AA8A9] pointer-events-none" />
+                  <select
+                    required
+                    value={formData.country}
+                    onChange={(e) => handleCountryChange(e.target.value)}
+                    className="w-full pl-8 pr-2.5 py-1.5 text-[12.5px] font-medium text-[#1A5556] bg-[#F8FBFA] hover:bg-white focus:bg-white border border-[#D9E6E6] rounded-md focus:outline-none focus:border-[#14968C] focus:ring-1.5 focus:ring-[#14968C]/15 transition-all cursor-pointer"
+                  >
+                    {countriesList.map((c) => (
+                      <option key={c.code} value={c.code}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Row 3: Phone Number & Password */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="flex items-center gap-1 text-[11.5px] font-semibold text-[#0E4441] tracking-wide mb-1">
+                  <span>Phone Number</span>
+                  <span className="text-[#14968C] text-[11px] font-bold leading-none">*</span>
+                </label>
+                <div className="relative">
+                  <Phone size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#8AA8A9] pointer-events-none" />
+                  <input
+                    type="tel"
+                    inputMode="tel"
+                    required
+                    autoComplete="off"
+                    placeholder="+1 555 019 2834"
+                    value={formData.phone || ""}
+                    onChange={(e) => handlePhoneChange(e.target.value)}
+                    onKeyDown={handlePhoneKeyDown}
+                    className="w-full pl-8 pr-2.5 py-1.5 text-[12.5px] font-medium text-[#1A5556] placeholder:text-[11.5px] placeholder:font-normal placeholder:text-[#9AB6B4] bg-[#F8FBFA] hover:bg-white focus:bg-white border border-[#D9E6E6] rounded-md focus:outline-none focus:border-[#14968C] focus:ring-1.5 focus:ring-[#14968C]/15 transition-all"
+                  />
+                </div>
+              </div>
+
               <div>
                 <label className="flex items-center gap-1 text-[11.5px] font-semibold text-[#0E4441] tracking-wide mb-1">
                   <span>Password</span>
@@ -374,74 +450,6 @@ export default function SignUpView() {
                   </button>
                 </div>
               </div>
-
-              <div>
-                <label className="flex items-center gap-1 text-[11.5px] font-semibold text-[#0E4441] tracking-wide mb-1">
-                  <span>Phone Number</span>
-                  <span className="text-[#14968C] text-[11px] font-bold leading-none">*</span>
-                </label>
-                <div className="relative">
-                  <Phone size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#8AA8A9] pointer-events-none" />
-                  <input
-                    type="tel"
-                    inputMode="tel"
-                    required
-                    autoComplete="off"
-                    placeholder="+1 555 019 2834"
-                    value={formData.phone || ""}
-                    onChange={(e) => handlePhoneChange(e.target.value)}
-                    onKeyDown={handlePhoneKeyDown}
-                    className="w-full pl-8 pr-2.5 py-1.5 text-[12.5px] font-medium text-[#1A5556] placeholder:text-[11.5px] placeholder:font-normal placeholder:text-[#9AB6B4] bg-[#F8FBFA] hover:bg-white focus:bg-white border border-[#D9E6E6] rounded-md focus:outline-none focus:border-[#14968C] focus:ring-1.5 focus:ring-[#14968C]/15 transition-all"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Row 3: Country & Primary Currency (Auto-synced) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="flex items-center gap-1 text-[11.5px] font-semibold text-[#0E4441] tracking-wide mb-1">
-                  <span>Country</span>
-                  <span className="text-[#14968C] text-[11px] font-bold leading-none">*</span>
-                </label>
-                <div className="relative">
-                  <Globe2 size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#8AA8A9] pointer-events-none" />
-                  <select
-                    required
-                    value={formData.country}
-                    onChange={(e) => handleCountryChange(e.target.value)}
-                    className="w-full pl-8 pr-2.5 py-1.5 text-[12.5px] font-medium text-[#1A5556] bg-[#F8FBFA] hover:bg-white focus:bg-white border border-[#D9E6E6] rounded-md focus:outline-none focus:border-[#14968C] focus:ring-1.5 focus:ring-[#14968C]/15 transition-all cursor-pointer"
-                  >
-                    {countriesList.map((c) => (
-                      <option key={c.code} value={c.code}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="flex items-center gap-1 text-[11.5px] font-semibold text-[#0E4441] tracking-wide mb-1">
-                  <span>Primary Currency</span>
-                  <span className="text-[#14968C] text-[11px] font-bold leading-none">*</span>
-                </label>
-                <div className="relative">
-                  <Coins size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#8AA8A9] pointer-events-none" />
-                  <select
-                    required
-                    value={formData.currency}
-                    onChange={(e) => handleFieldChange("currency", e.target.value)}
-                    className="w-full pl-8 pr-2.5 py-1.5 text-[12.5px] font-medium text-[#1A5556] bg-[#F8FBFA] hover:bg-white focus:bg-white border border-[#D9E6E6] rounded-md focus:outline-none focus:border-[#14968C] focus:ring-1.5 focus:ring-[#14968C]/15 transition-all cursor-pointer"
-                  >
-                    {CURRENCIES_LIST.map((cur) => (
-                      <option key={cur.code} value={cur.code}>
-                        {cur.label} — {cur.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
             </div>
 
             {/* Row 4: ERP Plan Selector (Included in API payload) */}
@@ -463,11 +471,10 @@ export default function SignUpView() {
                       key={p.id}
                       type="button"
                       onClick={() => handleFieldChange("plan", p.id)}
-                      className={`p-1.5 rounded-md border text-left transition-all cursor-pointer relative ${
-                        isSelected
+                      className={`p-1.5 rounded-md border text-left transition-all cursor-pointer relative ${isSelected
                           ? "border-[#14968C] bg-[#F0FDFF] text-[#0F766E] font-semibold ring-1 ring-[#14968C]"
                           : "border-[#D9E6E6] bg-[#F8FBFA] text-[#5A7D7E] hover:border-[#14968C]/60 hover:bg-white"
-                      }`}
+                        }`}
                     >
                       <div className="flex items-center justify-between">
                         <span className="text-[11.5px] font-bold">{p.name}</span>

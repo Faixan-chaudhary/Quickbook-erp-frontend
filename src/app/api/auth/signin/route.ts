@@ -16,7 +16,7 @@ const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL;
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { email, password } = body;
+    const { email, password, rememberMe = false } = body;
 
     // 1. Basic validation
     if (!email || !password) {
@@ -62,34 +62,39 @@ export async function POST(request: Request) {
     const cookieStore = await cookies();
     const isProduction = process.env.NODE_ENV === "production";
 
-    // Access token cookie (7 days)
-    cookieStore.set("access_token", data.access_token, {
+    // Base cookie settings
+    const cookieOptions: {
+      httpOnly: boolean;
+      secure: boolean;
+      sameSite: "lax";
+      path: string;
+      maxAge?: number;
+    } = {
       httpOnly: true,
       secure: isProduction,
       sameSite: "lax",
-      maxAge: 7 * 24 * 60 * 60,
       path: "/",
-    });
+    };
 
-    // Refresh token cookie (30 days)
+    // If rememberMe is checked: Keep session active for 30 days
+    // If unchecked: Omit maxAge -> Browser automatically deletes the cookie when closed!
+    if (rememberMe) {
+      cookieOptions.maxAge = 30 * 24 * 60 * 60; // 30 days persistent
+    }
+
+    // Access token cookie
+    cookieStore.set("access_token", data.access_token, cookieOptions);
+
+    // Refresh token cookie
     if (data.refresh_token) {
-      cookieStore.set("refresh_token", data.refresh_token, {
-        httpOnly: true,
-        secure: isProduction,
-        sameSite: "lax",
-        maxAge: 30 * 24 * 60 * 60,
-        path: "/",
-      });
+      cookieStore.set("refresh_token", data.refresh_token, cookieOptions);
     }
 
     // Optional user metadata cookie (non-sensitive)
     if (data.company_id) {
       cookieStore.set("company_id", data.company_id, {
+        ...cookieOptions,
         httpOnly: false,
-        secure: isProduction,
-        sameSite: "lax",
-        maxAge: 7 * 24 * 60 * 60,
-        path: "/",
       });
     }
 

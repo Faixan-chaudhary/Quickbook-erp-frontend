@@ -161,6 +161,9 @@ export interface Employee {
 export type PlanType = "Simple Start" | "Essentials" | "Plus" | "Advanced";
 
 export interface SignUpRequest {
+  name?: string;
+  user_name?: string;
+  full_name?: string;
   email: string;
   password: string;
   company_name: string;

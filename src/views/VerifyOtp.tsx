@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useState, useEffect, type FormEvent } from "react";
-import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import {
   KeyRound,
+  Mail,
   Coins,
   ArrowRight,
   AlertCircle,
@@ -23,20 +23,21 @@ interface TotpSessionData {
 }
 
 export default function VerifyOtpView() {
-  const searchParams = useSearchParams();
-  const emailFromQuery = searchParams.get("email") || "";
+  const router = useRouter();
 
   // State variables
-  const [email, setEmail] = useState(emailFromQuery);
+  const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [totpQrCode, setTotpQrCode] = useState<string | null>(null);
   const [totpSecret, setTotpSecret] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
+  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
 
   // Countdown timer for OTP expiration (60 seconds)
   const [countdown, setCountdown] = useState(60);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [resendStatus, setResendStatus] = useState<{ text: string; isError: boolean } | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   // Hook to call POST /api/auth/verify-otp
   const {
@@ -47,22 +48,30 @@ export default function VerifyOtpView() {
     reset: clearError,
   } = useVerifyOtp();
 
-  // 1. Load initial TOTP data saved during signup
+  // 1. Guard: Only accessible once right after signup with active registration session
   useEffect(() => {
     if (typeof window !== "undefined") {
       try {
         const stored = sessionStorage.getItem("arca_totp_data");
         if (stored) {
           const parsed: TotpSessionData = JSON.parse(stored);
-          if (parsed.email) setEmail(parsed.email);
-          if (parsed.totp_qr_code) setTotpQrCode(parsed.totp_qr_code);
-          if (parsed.totp_secret) setTotpSecret(parsed.totp_secret);
+          if (parsed.email) {
+            setEmail(parsed.email);
+            if (parsed.totp_qr_code) setTotpQrCode(parsed.totp_qr_code);
+            if (parsed.totp_secret) setTotpSecret(parsed.totp_secret);
+            setIsAuthorized(true);
+            return;
+          }
         }
+        // If no active registration verification session, redirect to signin
+        setIsAuthorized(false);
+        router.replace("/signin");
       } catch {
-        // Fallback silently if storage parse fails
+        setIsAuthorized(false);
+        router.replace("/signin");
       }
     }
-  }, []);
+  }, [router]);
 
   // 2. Timer countdown effect (ticks down every 1 second)
   useEffect(() => {
@@ -92,6 +101,8 @@ export default function VerifyOtpView() {
     try {
       setIsRegenerating(true);
       setResendStatus(null);
+      setValidationError(null);
+      clearError();
 
       const response = await authService.resendOtp(email.trim());
 
@@ -112,7 +123,7 @@ export default function VerifyOtpView() {
       }
 
       setResendStatus({
-        text: "New QR code and verification key generated successfully!",
+        text: "New QR code & verification key generated! Enter the fresh code from your app.",
         isError: false,
       });
       setCountdown(60); // Reset countdown timer back to 60s
@@ -127,15 +138,40 @@ export default function VerifyOtpView() {
     }
   };
 
-  // 5. Submit verification code to API
+  // 5. Submit verification code to API with expiration protection
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    if (!email.trim() || !otp.trim()) return;
+    setValidationError(null);
+    clearError();
+
+    if (!email.trim()) {
+      setValidationError("Session expired. Please sign up again.");
+      return;
+    }
+
+    if (countdown <= 0) {
+      setValidationError("Verification code has expired. Please click 'Expired • Regenerate' to get a fresh code.");
+      return;
+    }
+
+    if (!otp.trim() || otp.trim().length < 6) {
+      setValidationError("Please enter the complete 6-digit verification code.");
+      return;
+    }
 
     verify({ email: email.trim(), otp: otp.trim() });
   };
 
-  const errorMessage = error?.message || null;
+  const errorMessage = validationError || error?.message || null;
+
+  // Render spinner while verifying authorization session
+  if (isAuthorized === false || isAuthorized === null) {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center bg-[#E6F4F2]">
+        <div className="w-6 h-6 border-2 border-[#14968C] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-[#E6F4F2] via-[#F2FAF9] to-[#E0F2F0] text-[#1A5556] flex items-center justify-center p-4 sm:p-6 selection:bg-[#14968C] selection:text-white antialiased relative overflow-hidden">
@@ -157,7 +193,7 @@ export default function VerifyOtpView() {
               Verify Account
             </h1>
             <p className="text-[12.5px] text-[#5A7D7E] mt-0.5 font-normal">
-              Scan the QR code with your Authenticator app.
+              Scan the QR code with your Authenticator app & enter the 6-digit code.
             </p>
           </div>
 
@@ -191,7 +227,7 @@ export default function VerifyOtpView() {
           {isSuccess && (
             <div className="mb-3 p-2.5 rounded-lg bg-[#ECFDF5] border border-[#A7F3D0] text-[#065F46] text-[12px] flex items-center gap-2">
               <Check size={14} className="shrink-0 text-[#059669]" />
-              <span>Account verified! Transferring to Dashboard...</span>
+              <span>Account verified successfully! Transferring to Dashboard...</span>
             </div>
           )}
 
@@ -229,6 +265,23 @@ export default function VerifyOtpView() {
 
           {/* Verification Code Form */}
           <form onSubmit={handleSubmit} autoComplete="off" className="space-y-3">
+            {/* Work Email Field (Read-only from active signup session) */}
+            <div>
+              <label className="flex items-center gap-1 text-[11.5px] font-semibold text-[#0E4441] tracking-wide mb-1">
+                <span>Account Email</span>
+              </label>
+              <div className="relative">
+                <Mail size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#8AA8A9] pointer-events-none" />
+                <input
+                  type="email"
+                  readOnly
+                  tabIndex={-1}
+                  value={email}
+                  className="w-full pl-8 pr-2.5 py-1.5 text-[12.5px] font-medium text-[#1A5556] bg-[#F1F7F6] border border-[#D9E6E6] rounded-md outline-none cursor-default select-none"
+                />
+              </div>
+            </div>
+
             {/* 6-Digit Code Input & Live Timer / Regenerate Button */}
             <div>
               <div className="flex items-center justify-between text-[11.5px] font-semibold text-[#0E4441] tracking-wide mb-1">
@@ -267,6 +320,7 @@ export default function VerifyOtpView() {
                   value={otp}
                   onChange={(e) => {
                     setOtp(e.target.value.replace(/[^0-9]/g, ""));
+                    if (validationError) setValidationError(null);
                     if (error) clearError();
                   }}
                   className="w-full pl-8 pr-2.5 py-1.5 text-[12.5px] font-medium text-[#1A5556] placeholder:text-[11.5px] placeholder:font-normal placeholder:text-[#9AB6B4] bg-[#F8FBFA] hover:bg-white focus:bg-white border border-[#D9E6E6] rounded-md focus:outline-none focus:border-[#14968C] focus:ring-1.5 focus:ring-[#14968C]/15 transition-all"
@@ -305,19 +359,6 @@ export default function VerifyOtpView() {
               </button>
             </div>
           </form>
-
-          {/* Bottom Footer & Sign In Link */}
-          <div className="pt-3 mt-3 border-t border-[#E8F1F0] flex items-center justify-center text-[12px] text-[#5A7D7E]">
-            <div className="flex items-center gap-1.5">
-              <span>Already verified?</span>
-              <Link
-                href="/signin"
-                className="inline-flex items-center gap-1 font-semibold text-[#14968C] hover:text-[#0B3D3A] transition-colors duration-200 group"
-              >
-                <span>Sign In</span>
-              </Link>
-            </div>
-          </div>
         </div>
       </main>
     </div>

@@ -12,9 +12,13 @@ export const authService = {
    * POST /api/v1/auth/signup
    */
   async signup(payload: SignUpRequest): Promise<SignUpResponse> {
+    const rawName = (payload.name || payload.user_name || payload.full_name || "").trim();
     return apiClient<SignUpResponse>("/api/v1/auth/signup", {
       method: "POST",
       body: JSON.stringify({
+        name: rawName,
+        user_name: rawName,
+        full_name: rawName,
         email: payload.email.trim(),
         password: payload.password,
         company_name: payload.company_name.trim(),
@@ -31,10 +35,14 @@ export const authService = {
    * Calls secure Next.js handler which sets HttpOnly auth cookies (zero localStorage usage)
    * POST /api/auth/signin -> POST /api/v1/auth/signin/email
    */
-  async signinEmail(email: string, password: string): Promise<TokenResponse> {
+  async signinEmail(
+    email: string,
+    password: string,
+    rememberMe: boolean = false
+  ): Promise<TokenResponse> {
     return apiClient<TokenResponse>("/api/auth/signin", {
       method: "POST",
-      body: JSON.stringify({ email: email.trim(), password }),
+      body: JSON.stringify({ email: email.trim(), password, rememberMe }),
     });
   },
 
@@ -91,6 +99,7 @@ export const authService = {
         email: payload.email.trim(),
         otp: payload.otp.trim(),
         new_password: payload.new_password,
+        password: payload.new_password,
       }),
     });
   },

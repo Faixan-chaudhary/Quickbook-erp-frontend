@@ -83,7 +83,7 @@ export default function Dashboard() {
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-[20px] font-semibold text-[var(--color-text)] tracking-tight">
-            {greeting}, {userName.split(" ")[0]}
+            {greeting}, {userName}
           </h1>
           <p className="text-[12px] text-[var(--color-text-secondary)] mt-0.5 font-medium">
             {companyName}

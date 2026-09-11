@@ -30,7 +30,7 @@ export function useSignup() {
       }
 
       setTimeout(() => {
-        router.push(`/verify-otp?email=${encodeURIComponent(email)}`);
+        router.push("/verify-otp");
       }, 500);
     },
   });
@@ -63,10 +63,46 @@ export function useSignin() {
   const router = useRouter();
 
   return useMutation({
-    mutationFn: ({ email, password }: { email: string; password: string }) =>
-      authService.signinEmail(email, password),
+    mutationFn: ({
+      email,
+      password,
+      rememberMe,
+    }: {
+      email: string;
+      password: string;
+      rememberMe?: boolean;
+    }) => authService.signinEmail(email, password, rememberMe),
     onSuccess: () => {
       router.push("/dashboard");
+    },
+  });
+}
+
+/**
+ * Reusable mutation hook for requesting password reset OTP
+ */
+export function useForgotPassword() {
+  return useMutation({
+    mutationFn: (email: string) => authService.forgotPassword(email),
+  });
+}
+
+/**
+ * Reusable mutation hook for resetting password with OTP
+ */
+export function useResetPassword() {
+  const router = useRouter();
+
+  return useMutation({
+    mutationFn: (payload: { email: string; otp: string; new_password: string }) =>
+      authService.resetPassword(payload),
+    onSuccess: (_, variables) => {
+      if (typeof window !== "undefined" && variables?.email) {
+        localStorage.setItem("user_email", variables.email.trim());
+      }
+      setTimeout(() => {
+        router.push(`/signin?email=${encodeURIComponent(variables?.email?.trim() || "")}`);
+      }, 1000);
     },
   });
 }
@@ -84,6 +120,7 @@ export function useLogout() {
       if (typeof window !== "undefined") {
         localStorage.removeItem("arca_user_profile");
         localStorage.removeItem("arca_company_profile");
+        localStorage.removeItem("user_name");
         localStorage.removeItem("user_email");
         localStorage.removeItem("company_name");
         sessionStorage.clear();

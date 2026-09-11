@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, type FormEvent } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Mail,
   Lock,
@@ -22,22 +22,31 @@ const initialFormData = {
 
 export default function SignInView() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const queryEmail = searchParams.get("email") || "";
+
   const { mutate: signin, isPending: isLoading, error, isSuccess, reset: clearError } = useSignin();
-  const [formData, setFormData] = useState(initialFormData);
+  const [formData, setFormData] = useState({
+    email: queryEmail,
+    password: "",
+  });
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
 
   // Extract clean error message
   const errorMessage = error?.message || null;
 
-  // Clear state on initial mount & wipe any browser autofill
+  // On mount, if email is not set, load cached email from localStorage
   useEffect(() => {
-    setFormData(initialFormData);
-    const timer = setTimeout(() => {
-      setFormData(initialFormData);
-    }, 100);
-    return () => clearTimeout(timer);
-  }, []);
+    if (queryEmail) {
+      setFormData((prev) => ({ ...prev, email: queryEmail }));
+    } else if (typeof window !== "undefined") {
+      const savedEmail = localStorage.getItem("user_email");
+      if (savedEmail) {
+        setFormData((prev) => ({ ...prev, email: savedEmail }));
+      }
+    }
+  }, [queryEmail]);
 
   const handleChange = (field: "email" | "password", value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -46,16 +55,28 @@ export default function SignInView() {
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    const payload = { ...formData };
+    if (!formData.email.trim() || !formData.password) return;
+
     if (typeof window !== "undefined") {
-      localStorage.setItem("user_email", formData.email.trim());
+      if (rememberMe) {
+        localStorage.setItem("user_email", formData.email.trim());
+      } else {
+        localStorage.removeItem("user_email");
+      }
     }
-    setFormData(initialFormData); // Clear inputs immediately on submit
-    signin(payload, {
-      onSuccess: () => {
-        setFormData(initialFormData);
+
+    signin(
+      {
+        email: formData.email.trim(),
+        password: formData.password,
+        rememberMe,
       },
-    });
+      {
+        onSuccess: () => {
+          setFormData(initialFormData);
+        },
+      }
+    );
   };
 
   return (
@@ -151,20 +172,21 @@ export default function SignInView() {
 
             {/* Password */}
             <div>
-              <label className="flex items-center justify-between text-[11.5px] font-semibold text-[#0E4441] tracking-wide mb-1">
-                <span className="flex items-center gap-1">
+              <div className="flex items-center justify-between text-[11.5px] font-semibold text-[#0E4441] tracking-wide mb-1">
+                <label htmlFor="user_login_password" className="flex items-center gap-1 cursor-pointer">
                   <span>Password</span>
-                </span>
+                </label>
                 <Link
-                  href="/dashboard"
-                  className="text-[11px] font-medium text-[#14968C] hover:text-[#0B3D3A] transition-colors duration-200"
+                  href={`/reset-password${formData.email.trim() ? `?email=${encodeURIComponent(formData.email.trim())}` : ""}`}
+                  className="text-[11px] font-medium text-[#14968C] hover:text-[#0B3D3A] transition-colors duration-200 cursor-pointer"
                 >
                   Forgot password?
                 </Link>
-              </label>
+              </div>
               <div className="relative">
                 <Lock size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#8AA8A9] pointer-events-none" />
                 <input
+                  id="user_login_password"
                   type={showPassword ? "text" : "password"}
                   name="user_login_password"
                   required

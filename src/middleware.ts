@@ -28,7 +28,9 @@ export function middleware(request: NextRequest) {
     pathname === "/" ||
     pathname === "/signin" ||
     pathname === "/signup" ||
-    pathname === "/verify-otp";
+    pathname === "/verify-otp" ||
+    pathname === "/reset-password" ||
+    pathname === "/forgot-password";
 
   // If user is not authenticated and attempts to access any private route -> redirect to landing page
   if (!isAuthenticated && !isPublicRoute) {
@@ -36,8 +38,14 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(landingUrl);
   }
 
-  // If user is already authenticated and visits /signin or /signup -> redirect to dashboard
-  if (isAuthenticated && (pathname === "/signin" || pathname === "/signup")) {
+  // If user is already authenticated and visits public auth pages -> redirect to dashboard
+  if (
+    isAuthenticated &&
+    (pathname === "/signin" ||
+      pathname === "/signup" ||
+      pathname === "/reset-password" ||
+      pathname === "/forgot-password")
+  ) {
     const dashboardUrl = new URL("/dashboard", request.url);
     return NextResponse.redirect(dashboardUrl);
   }
