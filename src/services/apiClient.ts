@@ -15,9 +15,14 @@ export async function apiClient<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  // Allow local Next.js API route handlers (e.g. /api/auth/*) or full URLs
+  // Allow local Next.js API route handlers (e.g. /api/auth/*, /api/company/*, /api/users/*) or full URLs
+  const isLocalRoute =
+    endpoint.startsWith("/api/auth/") ||
+    endpoint.startsWith("/api/company/") ||
+    endpoint.startsWith("/api/users/");
+
   const url =
-    endpoint.startsWith("http") || endpoint.startsWith("/api/auth/")
+    endpoint.startsWith("http") || isLocalRoute
       ? endpoint
       : `${API_BASE_URL}${endpoint}`;
 
