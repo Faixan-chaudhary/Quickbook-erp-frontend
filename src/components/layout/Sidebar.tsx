@@ -29,12 +29,18 @@ import {
   Bot,
   Wallet,
   ClipboardList,
+  Check,
+  Plus,
+  Loader2,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Avatar } from "@/components/ui";
 import { useUserAndCompany } from "@/hooks/useUserAndCompany";
+import { companyService, type CompanyInfoResponse } from "@/services/companyService";
+import { CompanySetupModal } from "@/components/company/CompanySetupModal";
 
 interface NavItem {
   id: string;
@@ -144,8 +150,94 @@ interface SidebarProps {
 
 export default function Sidebar({ collapsed }: SidebarProps) {
   const pathname = usePathname();
+  const queryClient = useQueryClient();
   const [collapsed_groups, setCollapsedGroups] = useState<Set<string>>(new Set());
-  const { userName, userRole, companyName } = useUserAndCompany();
+  const [showCompanyDropdown, setShowCompanyDropdown] = useState(false);
+  const [showRegisterModal, setShowRegisterModal] = useState(false);
+  const [switchingCompanyId, setSwitchingCompanyId] = useState<string | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const {
+    userName,
+    userRole,
+    companyName,
+    companyId,
+    company,
+    userEmail,
+    userPhone,
+    refetchCompany,
+  } = useUserAndCompany();
+
+  // Fetch all companies accessible by current user
+  const { data: userCompanies = [] } = useQuery<CompanyInfoResponse[]>({
+    queryKey: ["user-companies"],
+    queryFn: () => companyService.getUserCompanies(),
+    staleTime: 5 * 60 * 1000, // 5 minutes caching
+    refetchOnWindowFocus: false, // Prevents duplicate API call on focus
+  });
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowCompanyDropdown(false);
+      }
+    }
+    if (showCompanyDropdown) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showCompanyDropdown]);
+
+  // Combine fetched user companies and ensure active company is present
+  const companiesList: CompanyInfoResponse[] = (() => {
+    const list = Array.isArray(userCompanies) ? [...userCompanies] : [];
+    if (
+      company &&
+      !list.some(
+        (c) =>
+          (c.id && c.id === company.id) ||
+          (c.name && c.name.toLowerCase() === company.name?.toLowerCase())
+      )
+    ) {
+      list.unshift(company as CompanyInfoResponse);
+    } else if (list.length === 0 && companyName) {
+      list.push({ id: companyId || "me", name: companyName } as CompanyInfoResponse);
+    }
+    return list;
+  })();
+
+  const handleSwitchCompany = async (targetCompany: CompanyInfoResponse) => {
+    if (!targetCompany.id || targetCompany.id === companyId) {
+      setShowCompanyDropdown(false);
+      return;
+    }
+
+    try {
+      setSwitchingCompanyId(targetCompany.id);
+      await companyService.switchCompany(targetCompany.id);
+
+      if (typeof window !== "undefined") {
+        localStorage.setItem("company_id", targetCompany.id);
+        if (targetCompany.name) {
+          localStorage.setItem("company_name", targetCompany.name);
+        }
+        localStorage.setItem("arca_company_profile", JSON.stringify(targetCompany));
+      }
+
+      // Optimistically update cache and invalidate smoothly once (prevents duplicate spam)
+      queryClient.setQueryData(["company-profile-me"], targetCompany);
+      queryClient.invalidateQueries({ queryKey: ["company-profile-me"] });
+      queryClient.invalidateQueries({ queryKey: ["user-companies"] });
+      setShowCompanyDropdown(false);
+    } catch (err) {
+      console.error("Failed to switch company:", err);
+    } finally {
+      setSwitchingCompanyId(null);
+    }
+  };
 
   const toggleGroup = (id: string) => {
     setCollapsedGroups((prev) => {
@@ -178,21 +270,93 @@ export default function Sidebar({ collapsed }: SidebarProps) {
 
       {/* Company selector */}
       {!collapsed && (
-        <div className="px-3 py-2 border-b border-[var(--color-border)] shrink-0">
-          <button className="w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-[var(--radius-md)] hover:bg-[var(--color-border-subtle)] transition-base group cursor-pointer">
+        <div className="px-2 py-2 border-b border-[var(--color-border)] shrink-0 relative z-30" ref={dropdownRef}>
+          <button
+            type="button"
+            onClick={() => setShowCompanyDropdown((prev) => !prev)}
+            className={`w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-[var(--radius-md)] hover:bg-[var(--color-border-subtle)] transition-base group cursor-pointer ${
+              showCompanyDropdown ? "bg-[var(--color-border-subtle)]" : ""
+            }`}
+          >
             <div className="flex items-center gap-2 overflow-hidden">
               <span className="w-5 h-5 rounded-[var(--radius-sm)] bg-[var(--color-primary)] flex items-center justify-center text-white text-[9px] font-bold shrink-0">
-                {companyName.charAt(0).toUpperCase()}
+                {companyName ? companyName.charAt(0).toUpperCase() : "C"}
               </span>
               <span className="text-[12px] font-medium text-[var(--color-text)] truncate">
-                {companyName}
+                {companyName || "Select Company"}
               </span>
             </div>
             <ChevronDown
               size={12}
-              className="text-[var(--color-text-tertiary)] shrink-0"
+              className={`text-[var(--color-text-tertiary)] shrink-0 transition-transform duration-200 ${
+                showCompanyDropdown ? "rotate-180" : ""
+              }`}
             />
           </button>
+
+          {/* Company Switcher Dropdown */}
+          {showCompanyDropdown && (
+            <div className="absolute left-2 right-2 top-[calc(100%+4px)] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-[var(--radius-lg)] shadow-lg py-1 z-50">
+              <div className="px-2.5 py-1 text-[10px] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wider">
+                Companies
+              </div>
+
+              <div className="max-h-[160px] overflow-y-auto hide-scrollbar py-0.5">
+                {companiesList.map((c) => {
+                  const isActive =
+                    (c.id && c.id === companyId) ||
+                    (!companyId && c.name?.toLowerCase() === companyName.toLowerCase());
+                  const isSwitching = switchingCompanyId === c.id;
+
+                  return (
+                    <button
+                      key={c.id || c.name}
+                      type="button"
+                      onClick={() => handleSwitchCompany(c)}
+                      disabled={isSwitching}
+                      className={`w-full flex items-center justify-between gap-2 px-2.5 py-1.5 text-left text-[12px] transition-colors cursor-pointer ${
+                        isActive
+                          ? "bg-[var(--color-accent-subtle)] text-[var(--color-primary)] font-medium"
+                          : "text-[var(--color-text)] hover:bg-[var(--color-border-subtle)]"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 truncate">
+                        <span
+                          className={`w-4 h-4 rounded-[var(--radius-sm)] flex items-center justify-center text-[8px] font-bold shrink-0 ${
+                            isActive
+                              ? "bg-[var(--color-primary)] text-white"
+                              : "bg-[var(--color-border)] text-[var(--color-text-secondary)]"
+                          }`}
+                        >
+                          {c.name ? c.name.charAt(0).toUpperCase() : "C"}
+                        </span>
+                        <span className="truncate">{c.name}</span>
+                      </div>
+                      {isSwitching ? (
+                        <Loader2 size={11} className="animate-spin text-[var(--color-primary)] shrink-0" />
+                      ) : isActive ? (
+                        <Check size={12} className="text-[var(--color-primary)] shrink-0" />
+                      ) : null}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="my-1 border-t border-[var(--color-border)]" />
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCompanyDropdown(false);
+                  setShowRegisterModal(true);
+                }}
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 text-[12px] font-medium text-[var(--color-primary)] hover:bg-[var(--color-accent-subtle)] transition-colors cursor-pointer"
+              >
+                <Plus size={13} className="shrink-0" />
+                <span className="truncate">Register New Company</span>
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -290,6 +454,20 @@ export default function Sidebar({ collapsed }: SidebarProps) {
           </div>
         )}
       </div>
+
+      {/* Register New Company Modal */}
+      {showRegisterModal && (
+        <CompanySetupModal
+          open={showRegisterModal}
+          onClose={() => setShowRegisterModal(false)}
+          mode="register"
+          userEmail={userEmail}
+          userPhone={userPhone}
+          onSuccess={() => {
+            setShowRegisterModal(false);
+          }}
+        />
+      )}
     </aside>
   );
 }

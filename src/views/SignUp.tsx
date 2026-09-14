@@ -251,6 +251,7 @@ export default function SignUpView() {
       if (formData.name) localStorage.setItem("user_name", formData.name.trim());
       localStorage.setItem("user_email", formData.email.trim());
       localStorage.setItem("company_name", formData.company_name.trim());
+      if (formData.phone) localStorage.setItem("user_phone", formData.phone.trim());
     }
 
     signup(payload);
