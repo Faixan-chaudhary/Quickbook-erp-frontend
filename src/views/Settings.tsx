@@ -17,10 +17,17 @@ import {
   Trash2,
   Key,
   Smartphone,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
-import { company, user, employees } from "../data/mock";
-import { Button, Card, Badge, Input, SectionHeader, Avatar } from "../components/ui";
+import { company as mockCompany, user, employees } from "../data/mock";
+import { Button, Card, Badge, Input, SectionHeader, Avatar, Select } from "../components/ui";
 import { useUserAndCompany } from "@/hooks/useUserAndCompany";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  companyService,
+  type CompanyInfoUpdate,
+} from "@/services/companyService";
 
 const NAV_ITEMS = [
   { id: "profile", label: "Profile Settings", icon: <UserCircle size={14} /> },
@@ -40,48 +47,227 @@ interface SettingsProps {
 export default function Settings({ initialSection = "company" }: SettingsProps) {
   const [activeSection, setActiveSection] = useState(initialSection);
   const [saved, setSaved] = useState(false);
-  const { userName, userEmail, userRole, companyName, companyCurrency } = useUserAndCompany();
+  const {
+    userName,
+    userEmail,
+    userPhone,
+    userRole,
+    companyName,
+    companyCurrency,
+    company,
+    refetchCompany,
+  } = useUserAndCompany();
+  const queryClient = useQueryClient();
+
+  // Company Profile form state backed by live API
+  const [companyForm, setCompanyForm] = useState<CompanyInfoUpdate>({
+    name: "",
+    legal_name: "",
+    tax_id: "",
+    website: "",
+    phone: "",
+    email: "",
+    line1: "",
+    city: "",
+    state: "",
+    postal_code: "",
+    country: "United States",
+    currency: "USD",
+    fiscal_year_start_month: "January",
+  });
+  const [companyError, setCompanyError] = useState<string | null>(null);
+  const [companySaving, setCompanySaving] = useState(false);
+  const [companySaved, setCompanySaved] = useState(false);
 
   useEffect(() => {
     if (initialSection) setActiveSection(initialSection);
   }, [initialSection]);
+
+  // Prepopulate company profile fields from live backend data and signup caches
+  useEffect(() => {
+    const storedCompName =
+      typeof window !== "undefined"
+        ? localStorage.getItem("company_name") || localStorage.getItem("company") || ""
+        : "";
+    const storedPhone =
+      typeof window !== "undefined"
+        ? localStorage.getItem("user_phone") || localStorage.getItem("phone") || ""
+        : "";
+    const storedEmail =
+      typeof window !== "undefined"
+        ? localStorage.getItem("user_email") || localStorage.getItem("email") || ""
+        : "";
+
+    const resolvedName = company?.name || companyName || storedCompName || "";
+    const resolvedPhone = company?.phone || userPhone || storedPhone || "";
+    const resolvedEmail = company?.email || userEmail || storedEmail || "";
+
+    setCompanyForm({
+      name: resolvedName,
+      legal_name: company?.legal_name || resolvedName || "",
+      tax_id: company?.tax_id || "",
+      website: company?.website || "",
+      phone: resolvedPhone,
+      email: resolvedEmail,
+      line1: company?.line1 || "",
+      city: company?.city || "",
+      state: company?.state || "",
+      postal_code: company?.postal_code || "",
+      country: company?.country || "United States",
+      currency: company?.currency || "USD",
+      fiscal_year_start_month: company?.fiscal_year_start_month || "January",
+    });
+  }, [company, companyName, userEmail, userPhone]);
+
 
   const handleSave = () => {
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
 
-  return (
-    <div className="p-6 flex flex-col gap-5 w-full">
-      <SectionHeader title="Settings" />
+  // Validate and submit updated company information to backend API
+  const handleSaveCompany = async () => {
+    setCompanyError(null);
 
-      <div className="flex gap-6">
-        {/* Sidebar nav */}
-        <div className="w-56 shrink-0 flex flex-col gap-0.5">
-          {NAV_ITEMS.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setActiveSection(item.id)}
-              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-[var(--radius-md)] text-[13px] font-medium cursor-pointer transition-base text-left ${
-                activeSection === item.id
-                  ? "bg-[var(--color-border-subtle)] text-[var(--color-text)]"
-                  : "text-[var(--color-text-secondary)] hover:bg-[var(--color-border-subtle)] hover:text-[var(--color-text)]"
-              }`}
-            >
-              <span className="shrink-0">{item.icon}</span>
-              {item.label}
-              {activeSection === item.id && (
-                <span className="ml-auto w-1 h-1 rounded-full bg-[var(--color-accent)]" />
-              )}
-            </button>
-          ))}
+    if (!companyForm.name.trim()) {
+      setCompanyError("Company Name is required.");
+      return;
+    }
+    if (!companyForm.legal_name.trim()) {
+      setCompanyError("Legal Registered Name is required.");
+      return;
+    }
+    if (!companyForm.email.trim()) {
+      setCompanyError("Business Email is required.");
+      return;
+    }
+    if (!companyForm.phone.trim()) {
+      setCompanyError("Phone number is required.");
+      return;
+    }
+    if (!companyForm.tax_id.trim()) {
+      setCompanyError("Tax ID / EIN is required.");
+      return;
+    }
+    if (!companyForm.website.trim()) {
+      setCompanyError("Company Website is required.");
+      return;
+    }
+    if (!companyForm.line1.trim()) {
+      setCompanyError("Street Address is required.");
+      return;
+    }
+    if (!companyForm.city.trim()) {
+      setCompanyError("City is required.");
+      return;
+    }
+    if (!companyForm.state.trim()) {
+      setCompanyError("State / Province is required.");
+      return;
+    }
+    if (!companyForm.postal_code.trim()) {
+      setCompanyError("Postal Code is required.");
+      return;
+    }
+
+    const companyId =
+      company?.id ||
+      (typeof window !== "undefined" ? localStorage.getItem("company_id") || "" : "") ||
+      "me";
+
+    try {
+      setCompanySaving(true);
+      const updated = await companyService.updateCompanyInfo(companyId, {
+        name: companyForm.name.trim(),
+        legal_name: companyForm.legal_name.trim(),
+        phone: companyForm.phone.trim(),
+        email: companyForm.email.trim(),
+        website: companyForm.website.trim(),
+        tax_id: companyForm.tax_id.trim(),
+        fiscal_year_start_month: companyForm.fiscal_year_start_month,
+        line1: companyForm.line1.trim(),
+        city: companyForm.city.trim(),
+        state: companyForm.state.trim(),
+        postal_code: companyForm.postal_code.trim(),
+        country: companyForm.country.trim(),
+        currency: companyForm.currency.trim(),
+      });
+
+      queryClient.setQueryData(["company-profile-me"], updated);
+      queryClient.invalidateQueries({ queryKey: ["company-profile-me"] });
+
+      if (typeof window !== "undefined") {
+        localStorage.setItem("arca_company_profile", JSON.stringify(updated));
+        if (updated.name) localStorage.setItem("company_name", updated.name);
+        if (updated.id) localStorage.setItem("company_id", updated.id);
+      }
+
+
+      setCompanySaved(true);
+      if (refetchCompany) refetchCompany();
+      setTimeout(() => setCompanySaved(false), 3000);
+    } catch (err: any) {
+      setCompanyError(err.message || "Failed to update company information");
+    } finally {
+      setCompanySaving(false);
+    }
+  };
+
+
+  return (
+    <div className="px-6 py-4 flex flex-col gap-4 w-full">
+      <div className="flex items-center justify-between pb-1 border-b border-[var(--color-border)]/60">
+        <div>
+          <h1 className="text-[18px] font-bold text-[var(--color-text)] tracking-tight">
+            Settings
+          </h1>
+          <p className="text-[12px] text-[var(--color-text-secondary)]">
+            Manage your organization profile, team members, and system preferences.
+          </p>
+        </div>
+      </div>
+
+      <div className="flex items-start gap-5 relative">
+        {/* Sidebar nav - Aligned panel card */}
+        <div className="w-56 shrink-0 sticky top-4 self-start bg-[var(--color-surface)] border border-[var(--color-border)] rounded-[var(--radius-lg)] p-2 flex flex-col gap-0.5 shadow-xs">
+          <div className="px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-tertiary)]">
+            Preferences
+          </div>
+          {NAV_ITEMS.map((item) => {
+            const isActive = activeSection === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => setActiveSection(item.id)}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-[var(--radius-md)] text-[13px] font-medium cursor-pointer transition-base text-left ${
+                  isActive
+                    ? "bg-[var(--color-primary-subtle)] text-[var(--color-primary)] font-semibold shadow-2xs"
+                    : "text-[var(--color-text-secondary)] hover:bg-[var(--color-border-subtle)] hover:text-[var(--color-text)]"
+                }`}
+              >
+                <span
+                  className={`shrink-0 ${
+                    isActive
+                      ? "text-[var(--color-primary)]"
+                      : "text-[var(--color-text-tertiary)]"
+                  }`}
+                >
+                  {item.icon}
+                </span>
+                <span className="truncate">{item.label}</span>
+                {isActive && (
+                  <span className="ml-auto w-1.5 h-1.5 rounded-full bg-[var(--color-primary)] shrink-0" />
+                )}
+              </button>
+            );
+          })}
         </div>
 
         {/* Content */}
         <div className="flex-1 min-w-0 flex flex-col gap-4">
           {activeSection === "profile" && (
             <Card>
-              <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center justify-between mb-4">
                 <h3 className="text-[14px] font-semibold text-[var(--color-text)]">Your Profile</h3>
                 <Button
                   variant="secondary"
@@ -92,18 +278,18 @@ export default function Settings({ initialSection = "company" }: SettingsProps) 
                   {saved ? "Saved!" : "Save Changes"}
                 </Button>
               </div>
-              <div className="flex items-start gap-5 mb-5">
-                <Avatar name={userName || user.name} size="lg" />
-                <div>
+              <div className="flex items-center gap-4 p-3 rounded-[var(--radius-md)] bg-[var(--color-border-subtle)]/40 border border-[var(--color-border)] mb-4">
+                <Avatar name={userName || user.name} size="md" />
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 flex-1">
                   <Button variant="secondary" size="sm" icon={<Upload size={13} />}>
                     Change Photo
                   </Button>
-                  <p className="text-[11px] text-[var(--color-text-tertiary)] mt-1.5">
+                  <p className="text-[11px] text-[var(--color-text-tertiary)]">
                     PNG or JPG · Max 2MB
                   </p>
                 </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                 <Input label="Full Name" defaultValue={userName || user.name} />
                 <Input label="Email" defaultValue={userEmail || user.email} />
                 <Input label="Role" defaultValue={userRole || user.role} />
@@ -117,69 +303,235 @@ export default function Settings({ initialSection = "company" }: SettingsProps) 
           {activeSection === "company" && (
             <>
               <Card>
-                <div className="flex items-center justify-between mb-5">
-                  <h3 className="text-[14px] font-semibold text-[var(--color-text)]">
-                    Company Information
-                  </h3>
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-[14px] font-semibold text-[var(--color-text)]">
+                      Company Information
+                    </h3>
+                    <p className="text-[12px] text-[var(--color-text-secondary)] mt-0.5">
+                      Manage your legal business entity and contact information.
+                    </p>
+                  </div>
                   <Button
-                    variant="secondary"
+                    variant="primary"
                     size="sm"
-                    icon={saved ? <Check size={13} /> : <Save size={13} />}
-                    onClick={handleSave}
+                    icon={
+                      companySaving ? (
+                        <Loader2 size={13} className="animate-spin" />
+                      ) : companySaved ? (
+                        <Check size={13} />
+                      ) : (
+                        <Save size={13} />
+                      )
+                    }
+                    disabled={companySaving}
+                    onClick={handleSaveCompany}
                   >
-                    {saved ? "Saved!" : "Save Changes"}
+                    {companySaving ? "Saving..." : companySaved ? "Saved!" : "Save Changes"}
                   </Button>
                 </div>
-                <div className="flex items-start gap-5 mb-5">
-                  <div className="w-16 h-16 rounded-[var(--radius-lg)] bg-[var(--color-border-subtle)] flex items-center justify-center shrink-0">
-                    <span className="text-[24px] font-bold text-[var(--color-primary)]">
-                      {(companyName || "M").charAt(0).toUpperCase()}
+
+                {/* Company Error Alert */}
+                {companyError && (
+                  <div className="flex items-start gap-2.5 p-3 rounded-[var(--radius-md)] bg-[var(--color-danger-bg)] border border-[var(--color-danger-border)] text-[12px] text-[var(--color-danger-text)] mb-4">
+                    <AlertCircle size={15} className="mt-0.5 shrink-0" />
+                    <div className="font-medium">{companyError}</div>
+                  </div>
+                )}
+
+                {/* Company Success Alert */}
+                {companySaved && (
+                  <div className="flex items-start gap-2.5 p-3 rounded-[var(--radius-md)] bg-[var(--color-success-bg)] border border-[var(--color-success-border)] text-[12px] text-[var(--color-success-text)] mb-4">
+                    <Check size={15} className="mt-0.5 shrink-0" />
+                    <div className="font-medium">Company profile updated successfully!</div>
+                  </div>
+                )}
+
+                {/* Logo uploader row - compact & elevated */}
+                <div className="flex items-center gap-4 p-3 rounded-[var(--radius-md)] bg-[var(--color-border-subtle)]/40 border border-[var(--color-border)] mb-4">
+                  <div className="w-12 h-12 rounded-[var(--radius-md)] bg-[var(--color-surface)] border border-[var(--color-border)] flex items-center justify-center shrink-0 shadow-xs">
+                    <span className="text-[18px] font-bold text-[var(--color-primary)]">
+                      {((companyForm.name || companyName || "M")).charAt(0).toUpperCase()}
                     </span>
                   </div>
-                  <div>
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 flex-1">
                     <Button variant="secondary" size="sm" icon={<Upload size={13} />}>
                       Upload Logo
                     </Button>
-                    <p className="text-[11px] text-[var(--color-text-tertiary)] mt-1.5">
+                    <p className="text-[11px] text-[var(--color-text-tertiary)]">
                       PNG or JPG · Max 2MB · Recommended 256×256px
                     </p>
                   </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Input label="Company Name" defaultValue={companyName || company.name} />
-                  <Input label="Legal Name" defaultValue={companyName || company.legalName} />
-                  <Input label="Tax ID / EIN" defaultValue={company.taxId} />
-                  <Input label="Industry" defaultValue={company.industry} />
-                  <Input label="Website" defaultValue={company.website} />
-                  <Input label="Phone" defaultValue={company.phone} />
-                  <div className="col-span-2">
-                    <Input label="Business Address" defaultValue={company.address} />
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                  <Input
+                    label="Company Name"
+                    required
+                    value={companyForm.name}
+                    onChange={(e) =>
+                      setCompanyForm((prev) => ({ ...prev, name: e.target.value }))
+                    }
+                  />
+                  <Input
+                    label="Legal Registered Name"
+                    required
+                    value={companyForm.legal_name}
+                    onChange={(e) =>
+                      setCompanyForm((prev) => ({ ...prev, legal_name: e.target.value }))
+                    }
+                  />
+                  <Input
+                    label="Tax ID / EIN"
+                    required
+                    value={companyForm.tax_id}
+                    onChange={(e) =>
+                      setCompanyForm((prev) => ({ ...prev, tax_id: e.target.value }))
+                    }
+                  />
+                  <Input
+                    label="Company Website"
+                    required
+                    value={companyForm.website}
+                    onChange={(e) =>
+                      setCompanyForm((prev) => ({ ...prev, website: e.target.value }))
+                    }
+                  />
+                  <Input
+                    label="Phone"
+                    required
+                    value={companyForm.phone}
+                    onChange={(e) =>
+                      setCompanyForm((prev) => ({ ...prev, phone: e.target.value }))
+                    }
+                  />
+                  <Input
+                    label="Business Email"
+                    required
+                    value={companyForm.email}
+                    onChange={(e) =>
+                      setCompanyForm((prev) => ({ ...prev, email: e.target.value }))
+                    }
+                  />
+                  <div className="col-span-1 md:col-span-2">
+                    <Input
+                      label="Street Address"
+                      required
+                      value={companyForm.line1}
+                      onChange={(e) =>
+                        setCompanyForm((prev) => ({ ...prev, line1: e.target.value }))
+                      }
+                    />
                   </div>
+                  <Input
+                    label="City"
+                    required
+                    value={companyForm.city}
+                    onChange={(e) =>
+                      setCompanyForm((prev) => ({ ...prev, city: e.target.value }))
+                    }
+                  />
+                  <Input
+                    label="State / Province"
+                    required
+                    value={companyForm.state}
+                    onChange={(e) =>
+                      setCompanyForm((prev) => ({ ...prev, state: e.target.value }))
+                    }
+                  />
+                  <Input
+                    label="Postal / Zip Code"
+                    required
+                    value={companyForm.postal_code}
+                    onChange={(e) =>
+                      setCompanyForm((prev) => ({ ...prev, postal_code: e.target.value }))
+                    }
+                  />
+                  <Input
+                    label="Country"
+                    required
+                    value={companyForm.country}
+                    onChange={(e) =>
+                      setCompanyForm((prev) => ({ ...prev, country: e.target.value }))
+                    }
+                  />
                 </div>
               </Card>
 
               <Card>
-                <h3 className="text-[14px] font-semibold text-[var(--color-text)] mb-4">
-                  Accounting Settings
-                </h3>
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-[14px] font-semibold text-[var(--color-text)]">
+                      Accounting Settings
+                    </h3>
+                    <p className="text-[12px] text-[var(--color-text-secondary)] mt-0.5">
+                      Configure your fiscal calendar and base monetary unit.
+                    </p>
+                  </div>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    icon={companySaving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+                    disabled={companySaving}
+                    onClick={handleSaveCompany}
+                  >
+                    Save Accounting
+                  </Button>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {[
-                    { label: "Fiscal Year", value: "January – December" },
-                    { label: "Base Currency", value: `${companyCurrency || "USD"} – Default Currency` },
-                    { label: "Tax System", value: "Accrual Basis" },
-                    { label: "Date Format", value: "MM/DD/YYYY" },
-                    { label: "Number Format", value: "1,000.00" },
-                    { label: "Timezone", value: "America/Los_Angeles (PST)" },
-                  ].map((field) => (
-                    <div key={field.label} className="flex flex-col gap-1.5">
-                      <label className="text-[12px] font-medium text-[var(--color-text)]">
-                        {field.label}
-                      </label>
-                      <select className="h-8 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-[var(--radius-md)] text-[13px] text-[var(--color-text)] px-3 focus:outline-none focus:border-[var(--color-accent)] transition-base cursor-pointer">
-                        <option>{field.value}</option>
-                      </select>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[12px] font-medium text-[var(--color-text)]">
+                      Fiscal Year Start Month <span className="text-[var(--color-danger)] ml-0.5">*</span>
+                    </label>
+                    <select
+                      value={companyForm.fiscal_year_start_month}
+                      onChange={(e) =>
+                        setCompanyForm((prev) => ({
+                          ...prev,
+                          fiscal_year_start_month: e.target.value,
+                        }))
+                      }
+                      className="h-8 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-[var(--radius-md)] text-[13px] text-[var(--color-text)] px-3 focus:outline-none focus:border-[var(--color-accent)] transition-base cursor-pointer"
+                    >
+                      {[
+                        "January", "February", "March", "April", "May", "June",
+                        "July", "August", "September", "October", "November", "December"
+                      ].map((m) => (
+                        <option key={m} value={m}>{m}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[12px] font-medium text-[var(--color-text)]">
+                      Base Currency <span className="text-[var(--color-danger)] ml-0.5">*</span>
+                    </label>
+                    <Input
+                      value={companyForm.currency}
+                      onChange={(e) =>
+                        setCompanyForm((prev) => ({ ...prev, currency: e.target.value }))
+                      }
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[12px] font-medium text-[var(--color-text)]">
+                      Tax System
+                    </label>
+                    <div className="h-8 bg-[var(--color-border-subtle)] border border-[var(--color-border)] rounded-[var(--radius-md)] text-[13px] text-[var(--color-text-secondary)] px-3 flex items-center">
+                      Accrual Basis
                     </div>
-                  ))}
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[12px] font-medium text-[var(--color-text)]">
+                      Date Format
+                    </label>
+                    <div className="h-8 bg-[var(--color-border-subtle)] border border-[var(--color-border)] rounded-[var(--radius-md)] text-[13px] text-[var(--color-text-secondary)] px-3 flex items-center">
+                      MM/DD/YYYY
+                    </div>
+                  </div>
                 </div>
               </Card>
             </>
