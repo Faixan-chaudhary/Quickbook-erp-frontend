@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   ComposedChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -9,12 +10,13 @@ import {
   TrendingUp, ArrowUpRight, ArrowDownRight,
   AlertCircle, CheckCircle2, Info, Calendar,
   FileText, ChevronRight, Target, RefreshCw,
-  ArrowRight, Brain,
+  ArrowRight, Brain, Building2,
 } from "lucide-react";
 import { revenueData, cashFlowData, expenseCategoryData, kpis, invoices, aiInsights, transactions } from "../data/mock";
 import { Card, Badge, Button, fmtCurrency, fmtDateShort, statusBadge } from "../components/ui";
 import { AnimateIn, ChartReveal } from "../components/ChartReveal";
 import { useUserAndCompany } from "@/hooks/useUserAndCompany";
+import { CompanySetupModal } from "@/components/company/CompanySetupModal";
 
 function KPICard({ label, value, prev, current, delay = 0 }: {
   label: string;
@@ -70,7 +72,17 @@ function tipFormatter(value: unknown) {
 export default function Dashboard() {
   const today = new Date();
   const greeting = today.getHours() < 12 ? "Good morning" : today.getHours() < 18 ? "Good afternoon" : "Good evening";
-  const { userName, companyName } = useUserAndCompany();
+  const {
+    userName,
+    userEmail,
+    userPhone,
+    companyName,
+    company,
+    isSetupComplete,
+    refetchCompany,
+  } = useUserAndCompany();
+
+  const [showSetupModal, setShowSetupModal] = useState(false);
 
   const totalInflow = cashFlowData.reduce((s, d) => s + d.inflow, 0);
   const totalOutflow = cashFlowData.reduce((s, d) => s + d.outflow, 0);
@@ -96,6 +108,55 @@ export default function Dashboard() {
           </Button>
         </div>
       </div>
+
+      {/* Complete Company Setup Alert Box (Renders only when setup is incomplete in database; NO cancel button per requirement) */}
+      {!isSetupComplete && (
+        <div className="relative overflow-hidden rounded-[var(--radius-xl)] border border-[var(--color-warning-border)] bg-[var(--color-warning-bg)]/80 backdrop-blur-sm p-4 md:p-5 transition-all shadow-sm">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-3.5">
+              <div className="w-10 h-10 rounded-[var(--radius-lg)] bg-[var(--color-warning)]/15 border border-[var(--color-warning-border)] flex items-center justify-center shrink-0 text-[var(--color-warning-text)]">
+                <Building2 size={20} className="text-[var(--color-warning)]" />
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-[14px] font-semibold text-[var(--color-text)]">
+                    Complete your business setup
+                  </h3>
+                  <Badge variant="warning" size="sm">Action Required</Badge>
+                </div>
+                <p className="text-[12px] text-[var(--color-text-secondary)] leading-relaxed max-w-2xl">
+                  Your workspace is active, but your legal address, tax identification, and fiscal settings are required to enable invoicing, accounting sync, and compliance reports.
+                </p>
+              </div>
+            </div>
+            <div className="shrink-0 w-full sm:w-auto">
+              <Button
+                variant="primary"
+                size="md"
+                className="w-full sm:w-auto shadow-sm"
+                iconRight={<ArrowRight size={14} />}
+                onClick={() => setShowSetupModal(true)}
+              >
+                Complete Setup
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Company Setup Modal */}
+      <CompanySetupModal
+        open={showSetupModal}
+        onClose={() => setShowSetupModal(false)}
+        company={company}
+        companyName={companyName}
+        userEmail={userEmail}
+        userPhone={userPhone}
+        onSuccess={() => {
+          setShowSetupModal(false);
+        }}
+      />
+
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">

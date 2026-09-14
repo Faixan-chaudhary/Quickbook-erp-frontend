@@ -1,6 +1,7 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { isCompanySetupComplete } from "@/services/companyService";
 
 export interface UserProfile {
   id?: string;
@@ -22,6 +23,16 @@ export interface CompanyProfile {
   plan?: string;
   phone?: string | null;
   email?: string | null;
+  website?: string | null;
+  tax_id?: string | null;
+  fiscal_year_start_month?: string | null;
+  line1?: string | null;
+  city?: string | null;
+  state?: string | null;
+  postal_code?: string | null;
+  is_active?: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 /**
@@ -54,6 +65,7 @@ export function useUserProfile() {
         const resolvedName = data.name || data.user_name || data.full_name;
         if (resolvedName) localStorage.setItem("user_name", resolvedName);
         if (data.email) localStorage.setItem("user_email", data.email);
+        if (data.phone) localStorage.setItem("user_phone", data.phone);
       }
       return data;
     },
@@ -95,18 +107,21 @@ export function useCompanyProfile() {
       if (typeof window !== "undefined" && data) {
         localStorage.setItem("arca_company_profile", JSON.stringify(data));
         if (data.name) localStorage.setItem("company_name", data.name);
+        if (data.id) localStorage.setItem("company_id", data.id);
+        if (data.phone) localStorage.setItem("user_phone", data.phone);
       }
       return data;
     },
     initialData: cachedCompany,
-    staleTime: Infinity, // Does not re-fetch on refresh if cache exists
+    staleTime: 5 * 60 * 1000, // 5 minutes caching (no redundant re-fetches)
     gcTime: 24 * 60 * 60 * 1000,
     refetchOnMount: false,
-    refetchOnWindowFocus: false,
+    refetchOnWindowFocus: false, // Prevents duplicate API calls on window / DevTools focus
     refetchOnReconnect: false,
     retry: 1,
   });
 }
+
 
 /**
  * Helper to capitalize names (e.g. "ahsan" -> "Ahsan", "ahsan ali" -> "Ahsan Ali")
@@ -168,12 +183,19 @@ function resolveCompanyName(
  */
 export function useUserAndCompany() {
   const { data: userData, isLoading: isUserLoading } = useUserProfile();
-  const { data: companyData, isLoading: isCompanyLoading } = useCompanyProfile();
+  const {
+    data: companyData,
+    isLoading: isCompanyLoading,
+    refetch: refetchCompany,
+  } = useCompanyProfile();
 
   // Determine user email & formatted display name
-  const effectiveEmail = userData?.email || (typeof window !== "undefined" ? localStorage.getItem("user_email") || "" : "");
-  const storedUserName = typeof window !== "undefined" ? localStorage.getItem("user_name") || "" : "";
-  
+  const effectiveEmail =
+    userData?.email ||
+    (typeof window !== "undefined" ? localStorage.getItem("user_email") || "" : "");
+  const storedUserName =
+    typeof window !== "undefined" ? localStorage.getItem("user_name") || "" : "";
+
   const rawUserName =
     userData?.name ||
     userData?.user_name ||
@@ -186,23 +208,47 @@ export function useUserAndCompany() {
   const userPlan = userData?.plan || companyData?.plan || "Essentials";
 
   // Determine company name & currency
-  const storedCompanyName = typeof window !== "undefined" ? localStorage.getItem("company_name") || "" : "";
+  const storedCompanyName =
+    typeof window !== "undefined" ? localStorage.getItem("company_name") || "" : "";
   const companyName = resolveCompanyName(
-    companyData?.name || (companyData as any)?.company_name || (companyData as any)?.legal_name,
+    companyData?.name ||
+      (companyData as any)?.company_name ||
+      (companyData as any)?.legal_name,
     storedCompanyName,
     effectiveEmail
   );
   const companyCurrency = companyData?.currency || "USD";
 
+  // Determine user phone
+  const storedUserPhone =
+    typeof window !== "undefined" ? localStorage.getItem("user_phone") || "" : "";
+  const userPhone =
+    companyData?.phone ||
+    userData?.phone ||
+    (userData as any)?.phone_number ||
+    storedUserPhone ||
+    "";
+
+  const companyId =
+    companyData?.id ||
+    (typeof window !== "undefined" ? localStorage.getItem("company_id") || "" : "");
+
+  const isSetupComplete = isCompanySetupComplete(companyData as any);
+
   return {
     userName,
     userEmail: effectiveEmail,
+    userPhone,
     userRole,
     userPlan,
     companyName,
     companyCurrency,
+    companyId,
+    isSetupComplete,
     isLoading: isUserLoading || isCompanyLoading,
     user: userData,
     company: companyData,
+    refetchCompany,
   };
 }
+
