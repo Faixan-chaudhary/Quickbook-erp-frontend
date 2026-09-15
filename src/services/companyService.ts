@@ -1,4 +1,10 @@
 import { apiClient } from "./apiClient";
+import type {
+  QBOPreferencesResponse,
+  PreferencesDetail,
+  PreferencesUpdateInput,
+  BusinessType,
+} from "@/types/preferences";
 
 /**
  * Company Information Payload for Updating / Completing Company Setup
@@ -84,8 +90,62 @@ export function isCompanySetupComplete(
 }
 
 /**
+ * Generate sensible default company preferences based on business type
+ */
+export function getDefaultPreferencesByCompanyType(
+  businessType: BusinessType = "general",
+  baseCurrency = "USD"
+): PreferencesDetail {
+  const isService = businessType === "services";
+  const isProduct = businessType === "product_sales";
+
+  return {
+    SyncToken: "0",
+    domain: "QBO",
+    AccountingInfoPrefs: {
+      FirstMonthOfFiscalYear: "January",
+      CustomerTerminology: isService ? "Clients" : "Customers",
+      TrackDepartments: isProduct,
+      DepartmentTerminology: "Department",
+      ClassTrackingPerTxn: isProduct,
+      ClassTrackingPerTxnLine: false,
+    },
+    CurrencyPrefs: {
+      MultiCurrencyEnabled: false,
+      HomeCurrency: {
+        value: baseCurrency,
+        name: baseCurrency,
+      },
+    },
+    ProductAndServicesPrefs: {
+      ForSales: true,
+      ForPurchase: !isService,
+      InventoryAndPurchaseOrder: isProduct,
+      QuantityWithPriceAndRate: true,
+      QuantityOnHand: isProduct,
+    },
+    SalesFormsPrefs: {
+      CustomTxnNumbers: true,
+      AllowDeposit: true,
+      AllowDiscount: true,
+      DefaultCustomerMessage: "Thank you for your business and have a great day!",
+      DefaultTerms: {
+        value: isService ? "Net 30" : "Due on Receipt",
+        name: isService ? "Net 30" : "Due on Receipt",
+      },
+      AutoApplyCredit: true,
+      AutoApplyPayments: true,
+    },
+    TaxPrefs: {
+      UsingSalesTax: true,
+      PartnerTaxEnabled: false,
+    },
+  };
+}
+
+/**
  * Central Company Service
- * Handles company retrieval and profile updates.
+ * Handles company retrieval, profile updates, and preferences.
  */
 export const companyService = {
   /**
@@ -123,6 +183,35 @@ export const companyService = {
   },
 
   /**
+   * Fetch company preferences
+   * GET /api/company/{company_id}/preferences -> Backend /v3/company/{company_id}/preferences
+   */
+  async getPreferences(companyId: string): Promise<QBOPreferencesResponse> {
+    const id = companyId && companyId !== "undefined" ? companyId : "me";
+    return apiClient<QBOPreferencesResponse>(
+      `/api/company/${encodeURIComponent(id)}/preferences`
+    );
+  },
+
+  /**
+   * Update company preferences
+   * POST /api/company/{company_id}/preferences -> Backend /v3/company/{company_id}/preferences
+   */
+  async updatePreferences(
+    companyId: string,
+    payload: PreferencesUpdateInput
+  ): Promise<QBOPreferencesResponse> {
+    const id = companyId && companyId !== "undefined" ? companyId : "me";
+    return apiClient<QBOPreferencesResponse>(
+      `/api/company/${encodeURIComponent(id)}/preferences`,
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }
+    );
+  },
+
+  /**
    * Switch active company
    * POST /api/company/switch
    */
@@ -147,5 +236,6 @@ export const companyService = {
     });
   },
 };
+
 
 

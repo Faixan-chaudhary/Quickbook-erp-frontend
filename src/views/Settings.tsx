@@ -19,19 +19,27 @@ import {
   Smartphone,
   Loader2,
   AlertCircle,
+  SlidersHorizontal,
+  Sparkles,
+  RefreshCw,
+  Lock,
 } from "lucide-react";
 import { company as mockCompany, user, employees } from "../data/mock";
-import { Button, Card, Badge, Input, SectionHeader, Avatar, Select } from "../components/ui";
+import { Button, Card, Badge, Input, SectionHeader, Avatar, Select, ToggleSwitch, Textarea } from "../components/ui";
 import { useUserAndCompany } from "@/hooks/useUserAndCompany";
+import { useCompanyPreferences } from "@/hooks/useCompanyPreferences";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   companyService,
+  getDefaultPreferencesByCompanyType,
   type CompanyInfoUpdate,
 } from "@/services/companyService";
+import type { PreferencesDetail, BusinessType } from "@/types/preferences";
 
 const NAV_ITEMS = [
   { id: "profile", label: "Profile Settings", icon: <UserCircle size={14} /> },
   { id: "company", label: "Company Profile", icon: <Building2 size={14} /> },
+  { id: "preferences", label: "Preferences", icon: <SlidersHorizontal size={14} /> },
   { id: "users", label: "Users & Roles", icon: <Users size={14} /> },
   { id: "billing", label: "Subscription & Billing", icon: <CreditCard size={14} /> },
   { id: "notifications", label: "Notifications", icon: <Bell size={14} /> },
@@ -59,6 +67,11 @@ export default function Settings({ initialSection = "company" }: SettingsProps) 
   } = useUserAndCompany();
   const queryClient = useQueryClient();
 
+  const companyId =
+    company?.id ||
+    (typeof window !== "undefined" ? localStorage.getItem("company_id") || "" : "") ||
+    "me";
+
   // Company Profile form state backed by live API
   const [companyForm, setCompanyForm] = useState<CompanyInfoUpdate>({
     name: "",
@@ -78,6 +91,133 @@ export default function Settings({ initialSection = "company" }: SettingsProps) 
   const [companyError, setCompanyError] = useState<string | null>(null);
   const [companySaving, setCompanySaving] = useState(false);
   const [companySaved, setCompanySaved] = useState(false);
+
+  // Cached Company Preferences isolated strictly by companyId
+  const {
+    data: cachedPrefsResponse,
+    isLoading: prefsQueryLoading,
+    error: prefsQueryError,
+  } = useCompanyPreferences(companyId);
+
+  // Editable Preferences form state
+  const [preferences, setPreferences] = useState<PreferencesDetail>(() =>
+    getDefaultPreferencesByCompanyType("general", companyCurrency || "USD")
+  );
+  const [prefsSaving, setPrefsSaving] = useState(false);
+  const [prefsSaved, setPrefsSaved] = useState(false);
+  const [prefsError, setPrefsError] = useState<string | null>(null);
+  const [isHomeCurrencySaved, setIsHomeCurrencySaved] = useState<boolean>(false);
+
+  // Synchronize preferences whenever active company changes or new cached data arrives
+  useEffect(() => {
+    if (companyId) {
+      const rawPrefs = cachedPrefsResponse?.Preferences;
+      const defaults = getDefaultPreferencesByCompanyType("general", companyCurrency || "USD");
+
+      setPreferences({
+        ...defaults,
+        ...(rawPrefs || {}),
+        AccountingInfoPrefs: {
+          ...defaults.AccountingInfoPrefs,
+          ...(rawPrefs?.AccountingInfoPrefs || {}),
+        },
+        CurrencyPrefs: {
+          ...defaults.CurrencyPrefs,
+          ...(rawPrefs?.CurrencyPrefs || {}),
+        },
+        ProductAndServicesPrefs: {
+          ...defaults.ProductAndServicesPrefs,
+          ...(rawPrefs?.ProductAndServicesPrefs || {}),
+        },
+        SalesFormsPrefs: {
+          ...defaults.SalesFormsPrefs,
+          ...(rawPrefs?.SalesFormsPrefs || {}),
+        },
+        TaxPrefs: {
+          ...defaults.TaxPrefs,
+          ...(rawPrefs?.TaxPrefs || {}),
+        },
+      });
+
+      setIsHomeCurrencySaved(Boolean(rawPrefs?.CurrencyPrefs?.HomeCurrency?.value));
+    }
+  }, [companyId, cachedPrefsResponse, companyCurrency]);
+
+  // Generic preference section updater
+  const updatePreference = <
+    K extends keyof Omit<PreferencesDetail, "Id" | "SyncToken" | "domain">,
+    F extends keyof PreferencesDetail[K]
+  >(
+    section: K,
+    field: F,
+    value: PreferencesDetail[K][F]
+  ) => {
+    setPreferences((prev) => ({
+      ...prev,
+      [section]: {
+        ...prev[section],
+        [field]: value,
+      },
+    }));
+  };
+
+  // Preset applicator based on company type
+  const applyPreset = (type: BusinessType) => {
+    const currentCurrency =
+      preferences.CurrencyPrefs?.HomeCurrency?.value ||
+      companyForm.currency ||
+      companyCurrency ||
+      "USD";
+    const preset = getDefaultPreferencesByCompanyType(type, currentCurrency);
+    setPreferences((prev) => ({
+      ...prev,
+      AccountingInfoPrefs: { ...prev.AccountingInfoPrefs, ...preset.AccountingInfoPrefs },
+      ProductAndServicesPrefs: { ...prev.ProductAndServicesPrefs, ...preset.ProductAndServicesPrefs },
+      SalesFormsPrefs: { ...prev.SalesFormsPrefs, ...preset.SalesFormsPrefs },
+      TaxPrefs: { ...prev.TaxPrefs, ...preset.TaxPrefs },
+      CurrencyPrefs: { ...prev.CurrencyPrefs, ...preset.CurrencyPrefs },
+    }));
+  };
+
+  // Submit updated preferences to backend API (only called on explicit user Save action)
+  const handleSavePreferences = async () => {
+    setPrefsError(null);
+    try {
+      setPrefsSaving(true);
+      const res = await companyService.updatePreferences(companyId, {
+        Preferences: preferences,
+        AccountingInfoPrefs: preferences.AccountingInfoPrefs,
+        CurrencyPrefs: preferences.CurrencyPrefs,
+        ProductAndServicesPrefs: preferences.ProductAndServicesPrefs,
+        SalesFormsPrefs: preferences.SalesFormsPrefs,
+        TaxPrefs: preferences.TaxPrefs,
+        SyncToken: preferences.SyncToken || "0",
+      });
+
+      if (res?.Preferences) {
+        setPreferences((prev) => ({
+          ...prev,
+          ...res.Preferences,
+        }));
+        // Update company-scoped localStorage and React Query cache directly
+        if (typeof window !== "undefined" && companyId && companyId !== "me") {
+          localStorage.setItem(`arca_company_preferences_${companyId}`, JSON.stringify(res.Preferences));
+        }
+        queryClient.setQueryData(["company-preferences", companyId], res);
+      }
+
+      setIsHomeCurrencySaved(true);
+      setPrefsSaved(true);
+      setTimeout(() => setPrefsSaved(false), 3000);
+    } catch (err: any) {
+      setPrefsError(err.message || "Failed to update company preferences");
+    } finally {
+      setPrefsSaving(false);
+    }
+  };
+
+
+
 
   useEffect(() => {
     if (initialSection) setActiveSection(initialSection);
@@ -215,8 +355,9 @@ export default function Settings({ initialSection = "company" }: SettingsProps) 
 
 
   return (
-    <div className="px-6 py-4 flex flex-col gap-4 w-full">
-      <div className="flex items-center justify-between pb-1 border-b border-[var(--color-border)]/60">
+    <div className="px-6 py-3 flex flex-col gap-4 w-full">
+      {/* Sticky Settings Header */}
+      <div className="sticky top-0 z-20 bg-[var(--color-bg)]/95 backdrop-blur-xs py-2.5 -mx-6 px-6 border-b border-[var(--color-border)]/60 flex items-center justify-between">
         <div>
           <h1 className="text-[18px] font-bold text-[var(--color-text)] tracking-tight">
             Settings
@@ -229,10 +370,11 @@ export default function Settings({ initialSection = "company" }: SettingsProps) 
 
       <div className="flex items-start gap-5 relative">
         {/* Sidebar nav - Aligned panel card */}
-        <div className="w-56 shrink-0 sticky top-4 self-start bg-[var(--color-surface)] border border-[var(--color-border)] rounded-[var(--radius-lg)] p-2 flex flex-col gap-0.5 shadow-xs">
+        <div className="w-56 shrink-0 sticky top-[68px] self-start bg-[var(--color-surface)] border border-[var(--color-border)] rounded-[var(--radius-lg)] p-2 flex flex-col gap-0.5 shadow-xs">
           <div className="px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-tertiary)]">
             Preferences
           </div>
+
           {NAV_ITEMS.map((item) => {
             const isActive = activeSection === item.id;
             return (
@@ -536,6 +678,555 @@ export default function Settings({ initialSection = "company" }: SettingsProps) 
               </Card>
             </>
           )}
+
+          {activeSection === "preferences" && (
+            <div className="flex flex-col gap-4">
+              {/* Preferences Header Card with Quick Presets & Save Action */}
+              <Card>
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                  <div>
+                    <h3 className="text-[14px] font-semibold text-[var(--color-text)]">
+                      Company Preferences
+                    </h3>
+                    <p className="text-[12px] text-[var(--color-text-secondary)] mt-0.5">
+                      Configure accounting rules, currency, sales form features, inventory, and tax defaults.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      icon={
+                        prefsSaving ? (
+                          <Loader2 size={13} className="animate-spin" />
+                        ) : prefsSaved ? (
+                          <Check size={13} />
+                        ) : (
+                          <Save size={13} />
+                        )
+                      }
+                      disabled={prefsSaving || (prefsQueryLoading && !cachedPrefsResponse)}
+                      onClick={handleSavePreferences}
+                    >
+                      {prefsSaving ? "Saving..." : prefsSaved ? "Saved!" : "Save Preferences"}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Company Type Preset Selector Bar */}
+                <div className="mt-4 pt-3.5 border-t border-[var(--color-border)]/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-1.5 text-[12px] text-[var(--color-text-secondary)]">
+                    <Sparkles size={14} className="text-[var(--color-accent)] shrink-0" />
+                    <span>Quick Business Presets:</span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      variant="secondary"
+                      size="xs"
+                      onClick={() => applyPreset("services")}
+                    >
+                      Service Company
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="xs"
+                      onClick={() => applyPreset("product_sales")}
+                    >
+                      Product & Retail
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      icon={<RefreshCw size={11} />}
+                      onClick={() => applyPreset("general")}
+                    >
+                      Standard QBO
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+
+              {/* Error Alert */}
+              {(prefsError || prefsQueryError) && (
+                <div className="flex items-start gap-2.5 p-3 rounded-[var(--radius-md)] bg-[var(--color-danger-bg)] border border-[var(--color-danger-border)] text-[12px] text-[var(--color-danger-text)]">
+                  <AlertCircle size={15} className="mt-0.5 shrink-0" />
+                  <div className="font-medium">{prefsError || (prefsQueryError as Error)?.message || "Failed to load preferences"}</div>
+                </div>
+              )}
+
+              {/* Success Alert */}
+              {prefsSaved && (
+                <div className="flex items-start gap-2.5 p-3 rounded-[var(--radius-md)] bg-[var(--color-success-bg)] border border-[var(--color-success-border)] text-[12px] text-[var(--color-success-text)]">
+                  <Check size={15} className="mt-0.5 shrink-0" />
+                  <div className="font-medium">Company preferences saved successfully!</div>
+                </div>
+              )}
+
+              {prefsQueryLoading && !cachedPrefsResponse ? (
+                <Card className="flex flex-col items-center justify-center py-14 gap-3">
+                  <Loader2 size={24} className="animate-spin text-[var(--color-accent)]" />
+                  <p className="text-[13px] text-[var(--color-text-secondary)]">
+                    Loading company preferences...
+                  </p>
+                </Card>
+              ) : (
+
+                <>
+                  {/* A. Accounting Information */}
+                  <Card>
+                    <div className="mb-4">
+                      <h4 className="text-[13px] font-semibold uppercase tracking-wider text-[var(--color-text)]">
+                        Accounting Information
+                      </h4>
+                      <p className="text-[11px] text-[var(--color-text-secondary)] mt-0.5">
+                        Manage terminology, fiscal period start, and departmental tracking.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 mb-4 pb-4 border-b border-[var(--color-border)]/60">
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[12px] font-medium text-[var(--color-text)]">
+                          Fiscal Year Start Month
+                        </label>
+                        <select
+                          value={preferences.AccountingInfoPrefs?.FirstMonthOfFiscalYear || "January"}
+                          onChange={(e) =>
+                            updatePreference(
+                              "AccountingInfoPrefs",
+                              "FirstMonthOfFiscalYear",
+                              e.target.value
+                            )
+                          }
+                          className="h-8 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-[var(--radius-md)] text-[13px] text-[var(--color-text)] px-3 focus:outline-none focus:border-[var(--color-accent)] transition-base cursor-pointer"
+                        >
+                          {[
+                            "January", "February", "March", "April", "May", "June",
+                            "July", "August", "September", "October", "November", "December",
+                          ].map((m) => (
+                            <option key={m} value={m}>{m}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[12px] font-medium text-[var(--color-text)]">
+                          Customer Terminology
+                        </label>
+                        <select
+                          value={preferences.AccountingInfoPrefs?.CustomerTerminology || "Customers"}
+                          onChange={(e) =>
+                            updatePreference(
+                              "AccountingInfoPrefs",
+                              "CustomerTerminology",
+                              e.target.value
+                            )
+                          }
+                          className="h-8 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-[var(--radius-md)] text-[13px] text-[var(--color-text)] px-3 focus:outline-none focus:border-[var(--color-accent)] transition-base cursor-pointer"
+                        >
+                          {["Customers", "Clients", "Donors", "Guests", "Members", "Tenants"].map((t) => (
+                            <option key={t} value={t}>{t}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[12px] font-medium text-[var(--color-text)]">
+                          Department Terminology
+                        </label>
+                        <select
+                          value={preferences.AccountingInfoPrefs?.DepartmentTerminology || "Department"}
+                          onChange={(e) =>
+                            updatePreference(
+                              "AccountingInfoPrefs",
+                              "DepartmentTerminology",
+                              e.target.value
+                            )
+                          }
+                          className="h-8 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-[var(--radius-md)] text-[13px] text-[var(--color-text)] px-3 focus:outline-none focus:border-[var(--color-accent)] transition-base cursor-pointer"
+                        >
+                          {["Department", "Location", "Division", "Business Unit", "Branch"].map((d) => (
+                            <option key={d} value={d}>{d}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col divide-y divide-[var(--color-border-subtle)]">
+                      <ToggleSwitch
+                        label="Track Departments"
+                        description="Enable department, location, or branch categorization on sales and expense forms."
+                        checked={Boolean(preferences.AccountingInfoPrefs?.TrackDepartments)}
+                        onChange={(val) =>
+                          updatePreference("AccountingInfoPrefs", "TrackDepartments", val)
+                        }
+                      />
+                      <ToggleSwitch
+                        label="Class Tracking Per Transaction"
+                        description="Assign one overall tracking class to entire invoices, bills, and payments."
+                        checked={Boolean(preferences.AccountingInfoPrefs?.ClassTrackingPerTxn)}
+                        onChange={(val) =>
+                          updatePreference("AccountingInfoPrefs", "ClassTrackingPerTxn", val)
+                        }
+                      />
+                      <ToggleSwitch
+                        label="Class Tracking Per Line Item"
+                        description="Assign separate tracking classes to individual item lines on transactions."
+                        checked={Boolean(preferences.AccountingInfoPrefs?.ClassTrackingPerTxnLine)}
+                        onChange={(val) =>
+                          updatePreference("AccountingInfoPrefs", "ClassTrackingPerTxnLine", val)
+                        }
+                      />
+                    </div>
+                  </Card>
+
+                  {/* B. Currency Preferences */}
+                  {(() => {
+                    const CURRENCY_LIST = [
+                      { code: "USD", name: "US Dollar", symbol: "$", label: "Dollar" },
+                      { code: "EUR", name: "Euro", symbol: "€", label: "Euro" },
+                      { code: "GBP", name: "British Pound", symbol: "£", label: "Pound" },
+                      { code: "PKR", name: "Pakistani Rupee", symbol: "₨", label: "PKR" },
+                    ];
+                    const CURRENCY_MAP: Record<string, { code: string; name: string; symbol: string; label: string }> = {
+                      USD: { code: "USD", name: "US Dollar", symbol: "$", label: "Dollar" },
+                      EUR: { code: "EUR", name: "Euro", symbol: "€", label: "Euro" },
+                      GBP: { code: "GBP", name: "British Pound", symbol: "£", label: "Pound" },
+                      PKR: { code: "PKR", name: "Pakistani Rupee", symbol: "₨", label: "PKR" },
+                    };
+
+                    const currentCurCode = (preferences.CurrencyPrefs?.HomeCurrency?.value || "USD").toUpperCase();
+                    const currentCurName =
+                      CURRENCY_MAP[currentCurCode]?.name ||
+                      preferences.CurrencyPrefs?.HomeCurrency?.name ||
+                      "US Dollar";
+
+                    return (
+                      <Card>
+                        <div className="mb-4">
+                          <h4 className="text-[13px] font-semibold uppercase tracking-wider text-[var(--color-text)]">
+                            Currency Preferences
+                          </h4>
+                          <p className="text-[11px] text-[var(--color-text-secondary)] mt-0.5">
+                            Select your primary home currency and configure global multi-currency transaction support.
+                          </p>
+                        </div>
+
+                        {/* Before & After Home Currency Status Banner */}
+                        {isHomeCurrencySaved ? (
+                          <div className="flex items-start gap-2.5 p-3 rounded-[var(--radius-md)] bg-[var(--color-primary-subtle)] border border-[var(--color-primary)]/30 text-[12px] text-[var(--color-text)] mb-3.5">
+                            <Lock size={15} className="mt-0.5 shrink-0 text-[var(--color-primary)]" />
+                            <div className="leading-relaxed">
+                              <span className="font-semibold text-[var(--color-primary)]">Home Currency Has Been Set:</span> Base Home Currency is permanently locked as <strong>{currentCurCode} ({currentCurName})</strong> for accounting ledger and tax compliance. To invoice or record bills in foreign currencies, enable the <strong>Multi-Currency Enabled</strong> toggle below.
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-start gap-2.5 p-3 rounded-[var(--radius-md)] bg-[var(--color-warning-bg)] border border-[var(--color-warning-border)] text-[12px] text-[var(--color-warning-text)] mb-3.5">
+                            <AlertCircle size={15} className="mt-0.5 shrink-0" />
+                            <div className="leading-relaxed">
+                              <span className="font-semibold">Before Saving Note:</span> Please select your organization&apos;s base currency carefully. Once saved to the system, the base Home Currency becomes permanent for financial ledger integrity and cannot be modified.
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Currency Selector Toggle Buttons */}
+                        <div className="flex flex-col gap-2 mb-4">
+                          <div className="flex items-center justify-between">
+                            <label className="text-[12px] font-medium text-[var(--color-text)]">
+                              Home Currency Selection
+                            </label>
+                            {isHomeCurrencySaved && (
+                              <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-primary)] flex items-center gap-1 bg-[var(--color-primary-subtle)] px-2 py-0.5 rounded-full">
+                                <Lock size={10} /> Locked & Active
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                            {CURRENCY_LIST.map((cur) => {
+                              const isSelected = currentCurCode === cur.code;
+                              return (
+                                <button
+                                  key={cur.code}
+                                  type="button"
+                                  disabled={isHomeCurrencySaved}
+                                  onClick={() =>
+                                    updatePreference("CurrencyPrefs", "HomeCurrency", {
+                                      value: cur.code,
+                                      name: cur.name,
+                                    })
+                                  }
+                                  className={`flex items-center justify-between px-3 py-2.5 rounded-[var(--radius-md)] border text-left transition-base ${
+                                    isHomeCurrencySaved ? "cursor-not-allowed" : "cursor-pointer"
+                                  } ${
+                                    isSelected
+                                      ? "bg-[var(--color-primary-subtle)] border-[var(--color-primary)] text-[var(--color-primary)] font-semibold shadow-2xs ring-1 ring-[var(--color-primary)]"
+                                      : isHomeCurrencySaved
+                                      ? "bg-[var(--color-surface)] border-[var(--color-border)] text-[var(--color-text-tertiary)] opacity-40"
+                                      : "bg-[var(--color-surface)] border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-text-tertiary)] hover:text-[var(--color-text)]"
+                                  }`}
+                                >
+                                  <div className="flex flex-col">
+                                    <span className="text-[13px] font-medium flex items-center gap-1">
+                                      <span>{cur.label}</span>
+                                      <span className="text-[11px] opacity-75 font-normal">({cur.symbol})</span>
+                                    </span>
+                                    <span className="text-[10px] opacity-75 truncate">{cur.name}</span>
+                                  </div>
+                                  <span
+                                    className={`text-[11px] font-bold px-1.5 py-0.5 rounded shrink-0 ml-1 flex items-center gap-1 ${
+                                      isSelected
+                                        ? "bg-[var(--color-primary)] text-white"
+                                        : "bg-[var(--color-border-subtle)] text-[var(--color-text-tertiary)]"
+                                    }`}
+                                  >
+                                    {isHomeCurrencySaved && isSelected && <Lock size={9} />}
+                                    {cur.code}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
+                          <Input
+                            label="Selected Currency Code"
+                            value={currentCurCode}
+                            readOnly
+                            className="bg-[var(--color-border-subtle)]/50 cursor-not-allowed font-medium font-mono"
+                            helper="Auto-selected based on active currency toggle."
+                          />
+                          <Input
+                            label="Selected Currency Name"
+                            value={currentCurName}
+                            readOnly
+                            className="bg-[var(--color-border-subtle)]/50 cursor-not-allowed font-medium"
+                            helper="Display label for your organization's base currency."
+                          />
+                        </div>
+
+                        <div className="pt-2 border-t border-[var(--color-border-subtle)]">
+                          <ToggleSwitch
+                            label="Multi-Currency Enabled"
+                            description="Enable invoicing and bank account tracking across multiple international currencies."
+                            checked={Boolean(preferences.CurrencyPrefs?.MultiCurrencyEnabled)}
+                            onChange={(val) =>
+                              updatePreference("CurrencyPrefs", "MultiCurrencyEnabled", val)
+                            }
+                          />
+                        </div>
+                      </Card>
+                    );
+                  })()}
+
+
+
+                  {/* C. Products and Services */}
+                  <Card>
+                    <div className="mb-4">
+                      <h4 className="text-[13px] font-semibold uppercase tracking-wider text-[var(--color-text)]">
+                        Products & Services
+                      </h4>
+                      <p className="text-[11px] text-[var(--color-text-secondary)] mt-0.5">
+                        Configure item catalogs, purchase ordering, and live inventory quantity tracking.
+                      </p>
+                    </div>
+
+                    <div className="flex flex-col divide-y divide-[var(--color-border-subtle)]">
+                      <ToggleSwitch
+                        label="For Sales Forms"
+                        description="Allow selecting items from your product & service catalog on invoices and estimates."
+                        checked={Boolean(preferences.ProductAndServicesPrefs?.ForSales)}
+                        onChange={(val) =>
+                          updatePreference("ProductAndServicesPrefs", "ForSales", val)
+                        }
+                      />
+                      <ToggleSwitch
+                        label="For Purchase Forms"
+                        description="Allow selecting product catalog items on vendor bills, expenses, and purchase orders."
+                        checked={Boolean(preferences.ProductAndServicesPrefs?.ForPurchase)}
+                        onChange={(val) =>
+                          updatePreference("ProductAndServicesPrefs", "ForPurchase", val)
+                        }
+                      />
+                      <ToggleSwitch
+                        label="Inventory and Purchase Orders"
+                        description="Enable perpetual inventory tracking, reorder levels, and purchase order generation."
+                        checked={Boolean(preferences.ProductAndServicesPrefs?.InventoryAndPurchaseOrder)}
+                        onChange={(val) =>
+                          updatePreference("ProductAndServicesPrefs", "InventoryAndPurchaseOrder", val)
+                        }
+                      />
+                      <ToggleSwitch
+                        label="Quantity With Price & Rate"
+                        description="Show quantity, unit price, and total rate calculation columns on form lines."
+                        checked={Boolean(preferences.ProductAndServicesPrefs?.QuantityWithPriceAndRate)}
+                        onChange={(val) =>
+                          updatePreference("ProductAndServicesPrefs", "QuantityWithPriceAndRate", val)
+                        }
+                      />
+                      <ToggleSwitch
+                        label="Quantity On Hand"
+                        description="Track available stock levels and display current quantity on hand warnings."
+                        checked={Boolean(preferences.ProductAndServicesPrefs?.QuantityOnHand)}
+                        onChange={(val) =>
+                          updatePreference("ProductAndServicesPrefs", "QuantityOnHand", val)
+                        }
+                      />
+                    </div>
+                  </Card>
+
+                  {/* D. Sales Forms */}
+                  <Card>
+                    <div className="mb-4">
+                      <h4 className="text-[13px] font-semibold uppercase tracking-wider text-[var(--color-text)]">
+                        Sales Forms & Invoicing
+                      </h4>
+                      <p className="text-[11px] text-[var(--color-text-secondary)] mt-0.5">
+                        Configure payment terms, discounts, customer memo defaults, and automated credit application.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[12px] font-medium text-[var(--color-text)]">
+                          Default Payment Terms
+                        </label>
+                        <select
+                          value={preferences.SalesFormsPrefs?.DefaultTerms?.value || "Net 30"}
+                          onChange={(e) =>
+                            updatePreference("SalesFormsPrefs", "DefaultTerms", {
+                              value: e.target.value,
+                              name: e.target.value,
+                            })
+                          }
+                          className="h-8 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-[var(--radius-md)] text-[13px] text-[var(--color-text)] px-3 focus:outline-none focus:border-[var(--color-accent)] transition-base cursor-pointer"
+                        >
+                          {["Due on Receipt", "Net 15", "Net 30", "Net 45", "Net 60"].map((term) => (
+                            <option key={term} value={term}>{term}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[12px] font-medium text-[var(--color-text)]">
+                          Default Customer Memo
+                        </label>
+                        <Input
+                          value={preferences.SalesFormsPrefs?.DefaultCustomerMessage || ""}
+                          onChange={(e) =>
+                            updatePreference(
+                              "SalesFormsPrefs",
+                              "DefaultCustomerMessage",
+                              e.target.value
+                            )
+                          }
+                          placeholder="Thank you for your business and have a great day!"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col divide-y divide-[var(--color-border-subtle)]">
+                      <ToggleSwitch
+                        label="Custom Transaction Numbers"
+                        description="Allow manually typing custom invoice and receipt numbers instead of auto-numbering."
+                        checked={Boolean(preferences.SalesFormsPrefs?.CustomTxnNumbers)}
+                        onChange={(val) =>
+                          updatePreference("SalesFormsPrefs", "CustomTxnNumbers", val)
+                        }
+                      />
+                      <ToggleSwitch
+                        label="Allow Deposits on Invoices"
+                        description="Enable receiving initial customer deposits and advances directly on invoice documents."
+                        checked={Boolean(preferences.SalesFormsPrefs?.AllowDeposit)}
+                        onChange={(val) =>
+                          updatePreference("SalesFormsPrefs", "AllowDeposit", val)
+                        }
+                      />
+                      <ToggleSwitch
+                        label="Allow Discounts"
+                        description="Enable percentage or fixed discount fields on invoice lines and order totals."
+                        checked={Boolean(preferences.SalesFormsPrefs?.AllowDiscount)}
+                        onChange={(val) =>
+                          updatePreference("SalesFormsPrefs", "AllowDiscount", val)
+                        }
+                      />
+                      <ToggleSwitch
+                        label="Auto-Apply Customer Credits"
+                        description="Automatically allocate open customer credit balances to newly created invoices."
+                        checked={Boolean(preferences.SalesFormsPrefs?.AutoApplyCredit)}
+                        onChange={(val) =>
+                          updatePreference("SalesFormsPrefs", "AutoApplyCredit", val)
+                        }
+                      />
+                      <ToggleSwitch
+                        label="Auto-Apply Received Payments"
+                        description="Automatically match and apply incoming payments to outstanding unpaid invoices."
+                        checked={Boolean(preferences.SalesFormsPrefs?.AutoApplyPayments)}
+                        onChange={(val) =>
+                          updatePreference("SalesFormsPrefs", "AutoApplyPayments", val)
+                        }
+                      />
+                    </div>
+                  </Card>
+
+                  {/* E. Tax Preferences */}
+                  <Card>
+                    <div className="mb-4">
+                      <h4 className="text-[13px] font-semibold uppercase tracking-wider text-[var(--color-text)]">
+                        Tax Preferences
+                      </h4>
+                      <p className="text-[11px] text-[var(--color-text-secondary)] mt-0.5">
+                        Configure sales tax calculation and automated 3rd-party tax partner engines.
+                      </p>
+                    </div>
+
+                    <div className="flex flex-col divide-y divide-[var(--color-border-subtle)]">
+                      <ToggleSwitch
+                        label="Using Sales Tax"
+                        description="Enable sales tax calculation and tax rate selection on taxable transactions."
+                        checked={Boolean(preferences.TaxPrefs?.UsingSalesTax)}
+                        onChange={(val) =>
+                          updatePreference("TaxPrefs", "UsingSalesTax", val)
+                        }
+                      />
+                      <ToggleSwitch
+                        label="Partner Tax Engine Enabled"
+                        description="Connect automated third-party sales tax compliance and rate lookup engines."
+                        checked={Boolean(preferences.TaxPrefs?.PartnerTaxEnabled)}
+                        onChange={(val) =>
+                          updatePreference("TaxPrefs", "PartnerTaxEnabled", val)
+                        }
+                      />
+                    </div>
+                  </Card>
+
+                  {/* Bottom Save Button Action */}
+                  <div className="flex items-center justify-end gap-3 pt-2">
+                    <Button
+                      variant="primary"
+                      size="md"
+                      icon={
+                        prefsSaving ? (
+                          <Loader2 size={13} className="animate-spin" />
+                        ) : prefsSaved ? (
+                          <Check size={13} />
+                        ) : (
+                          <Save size={13} />
+                        )
+                      }
+                      disabled={prefsSaving || (prefsQueryLoading && !cachedPrefsResponse)}
+                      onClick={handleSavePreferences}
+                    >
+                      {prefsSaving ? "Saving Changes..." : prefsSaved ? "Saved Successfully!" : "Save Preferences"}
+                    </Button>
+                  </div>
+                </>
+              )}
+
+            </div>
+          )}
+
 
           {activeSection === "users" && (
             <Card padding="none">

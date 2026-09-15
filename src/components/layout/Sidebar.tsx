@@ -230,8 +230,10 @@ export default function Sidebar({ collapsed }: SidebarProps) {
       // Optimistically update cache and invalidate smoothly once (prevents duplicate spam)
       queryClient.setQueryData(["company-profile-me"], targetCompany);
       queryClient.invalidateQueries({ queryKey: ["company-profile-me"] });
+      queryClient.invalidateQueries({ queryKey: ["company-preferences", targetCompany.id] });
       queryClient.invalidateQueries({ queryKey: ["user-companies"] });
       setShowCompanyDropdown(false);
+
     } catch (err) {
       console.error("Failed to switch company:", err);
     } finally {
