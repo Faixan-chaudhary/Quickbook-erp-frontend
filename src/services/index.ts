@@ -6,4 +6,5 @@ export * from "./vendorService";
 export * from "./bankingService";
 export * from "./productService";
 export * from "./companyService";
+export * from "./accountService";
 

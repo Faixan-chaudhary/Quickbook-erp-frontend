@@ -6,6 +6,7 @@ export type Page =
   | "invoices"
   | "customers"
   | "banking"
+  | "accounts"
   | "expenses"
   | "bills"
   | "vendors"
@@ -219,5 +220,6 @@ export interface TokenResponse {
 }
 
 export * from "./preferences";
-
-
+export * from "./account";
+export * from "./customer";
+export * from "./vendor";

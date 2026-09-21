@@ -104,6 +104,7 @@ const navGroups: NavGroup[] = [
     label: "Cash & Banking",
     items: [
       { id: "banking", href: "/banking", label: "Banking", icon: <Landmark size={14} /> },
+      { id: "accounts", href: "/accounts", label: "Chart of Accounts", icon: <Wallet size={14} /> },
       { id: "payments", href: "/payments", label: "Payments", icon: <ArrowLeftRight size={14} /> },
       { id: "payroll", href: "/payroll", label: "Payroll", icon: <DollarSign size={14} /> },
       { id: "employees", href: "/employees", label: "Employees", icon: <Users2 size={14} /> },
