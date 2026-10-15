@@ -1,3 +1,5 @@
+"use client";
+
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react"
 
 function useInView(delay = 0) {
@@ -5,6 +7,7 @@ function useInView(delay = 0) {
   const [visible, setVisible] = useState(false)
 
   useEffect(() => {
+    let isMounted = true
     const el = ref.current
     if (!el) return
 
@@ -16,14 +19,19 @@ function useInView(delay = 0) {
     let timeoutId = 0
     const io = new IntersectionObserver(
       ([entry]) => {
-        if (!entry.isIntersecting) return
-        timeoutId = window.setTimeout(() => setVisible(true), delay)
+        if (!entry.isIntersecting || !isMounted) return
+        timeoutId = window.setTimeout(() => {
+          if (isMounted) {
+            setVisible(true)
+          }
+        }, delay)
         io.disconnect()
       },
       { threshold: 0.18, rootMargin: "0px 0px -24px 0px" },
     )
     io.observe(el)
     return () => {
+      isMounted = false
       io.disconnect()
       window.clearTimeout(timeoutId)
     }
